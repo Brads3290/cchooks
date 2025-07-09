@@ -1,0 +1,84 @@
+/*
+Package cchooks provides a Go SDK for creating strongly typed Claude Code hooks.
+
+This SDK simplifies the creation of individual hook binaries that handle Claude Code
+events with type safety and comprehensive testing utilities.
+
+# Basic Usage
+
+Create a hook by defining handlers for the events you want to process:
+
+	package main
+
+	import (
+	    "context"
+	    "log"
+	    cchooks "github.com/brads3290/claude-code-hooks-go"
+	)
+
+	func main() {
+	    runner := &cchooks.Runner{
+	        PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+	            // Your logic here
+	            return cchooks.Approve(), nil
+	        },
+	    }
+
+	    if err := runner.Run(context.Background()); err != nil {
+	        log.Fatal(err)
+	    }
+	}
+
+# Event Types
+
+The SDK supports four event types that correspond to Claude Code's hook system:
+
+  - PreToolUse: Called before a tool is executed
+  - PostToolUse: Called after a tool is executed
+  - Notification: Called for Claude notifications
+  - Stop: Called when Claude is stopping
+
+# Tool Input Parsing
+
+Events provide typed parsing methods for all Claude Code tools:
+
+	// Parse Bash input
+	bash, err := event.AsBash()
+
+	// Parse Edit input
+	edit, err := event.AsEdit()
+
+	// Parse Write input
+	write, err := event.AsWrite()
+
+# Response Helpers
+
+The SDK provides helper functions for common responses:
+
+	// PreToolUse responses
+	cchooks.Approve()           // Allow the tool
+	cchooks.Block(reason)       // Block with reason
+	cchooks.StopClaude(reason)  // Stop Claude
+
+	// PostToolUse responses
+	cchooks.Allow()             // Continue (empty response)
+	cchooks.PostBlock(reason)   // Block after execution
+
+# Testing
+
+The SDK includes testing utilities for validating hook behavior:
+
+	tester := cchooks.NewTestRunner(runner)
+
+	// Test assertions
+	err := tester.AssertPreToolUseApproves("Bash", bashInput)
+	err := tester.AssertPreToolUseBlocks("Bash", dangerousInput)
+
+# Error Handling
+
+Hooks communicate with Claude Code through exit codes:
+  - Exit code 0: Success
+  - Exit code 2: Error sent to Claude
+  - Other codes: Error shown to user
+*/
+package cchooks
