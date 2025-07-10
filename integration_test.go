@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	cchooks "github.com/brads3290/claude-code-hooks-go"
+	cchooks "github.com/brads3290/cchooks"
 )
 
 // TestIntegration runs an end-to-end test simulating Claude Code hook execution
@@ -24,7 +24,7 @@ import (
 	"context"
 	"log"
 	"strings"
-	cchooks "github.com/brads3290/claude-code-hooks-go"
+	cchooks "github.com/brads3290/cchooks"
 )
 
 func main() {

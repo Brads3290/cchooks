@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	cchooks "github.com/brads3290/claude-code-hooks-go"
+	cchooks "github.com/brads3290/cchooks"
 )
 
 func main() {

@@ -13,7 +13,7 @@ Create a hook by defining handlers for the events you want to process:
 	import (
 	    "context"
 	    "log"
-	    cchooks "github.com/brads3290/claude-code-hooks-go"
+	    cchooks "github.com/brads3290/cchooks"
 	)
 
 	func main() {

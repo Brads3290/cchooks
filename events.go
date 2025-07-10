@@ -3,7 +3,7 @@ package cchooks
 import (
 	"encoding/json"
 
-	"github.com/brads3290/claude-code-hooks-go/internal/tools"
+	"github.com/brads3290/cchooks/internal/tools"
 )
 
 // Event types - data containers for each hook event

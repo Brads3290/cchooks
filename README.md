@@ -5,7 +5,7 @@ A Go SDK for creating strongly typed Claude Code hooks. This SDK simplifies the 
 ## Installation
 
 ```bash
-go get github.com/brads3290/claude-code-hooks-go
+go get github.com/brads3290/cchooks
 ```
 
 ## Quick Start
@@ -20,7 +20,7 @@ import (
     "log"
     "strings"
 
-    cchooks "github.com/brads3290/claude-code-hooks-go"
+    cchooks "github.com/brads3290/cchooks"
 )
 
 func main() {

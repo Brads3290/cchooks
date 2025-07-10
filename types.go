@@ -1,7 +1,7 @@
 package cchooks
 
 import (
-	"github.com/brads3290/claude-code-hooks-go/internal/tools"
+	"github.com/brads3290/cchooks/internal/tools"
 )
 
 // Re-export commonly used tool types for testing and external usage

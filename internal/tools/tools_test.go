@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/brads3290/claude-code-hooks-go"
-	"github.com/brads3290/claude-code-hooks-go/internal/tools"
+	"github.com/brads3290/cchooks"
+	"github.com/brads3290/cchooks/internal/tools"
 )
 
 func TestPreToolUseEventParsing(t *testing.T) {
