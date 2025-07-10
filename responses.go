@@ -101,3 +101,9 @@ func StopFromStop(reason string) *StopResponse {
 	return &StopResponse{Continue: &cont, StopReason: reason}
 }
 
+// RawResponse is the response for the Raw handler
+type RawResponse struct {
+	ExitCode int
+	Output   string
+}
+

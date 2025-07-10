@@ -174,6 +174,37 @@ Build your hook as a standard Go binary:
 go build -o my-hook main.go
 ```
 
+## Advanced Features
+
+### Raw Handler
+
+For complete control over hook processing, you can provide a Raw handler that receives the raw JSON string before any parsing:
+
+```go
+runner := &cchooks.Runner{
+    Raw: func(ctx context.Context, rawJSON string) (*cchooks.RawResponse, error) {
+        // Process raw JSON directly
+        if strings.Contains(rawJSON, "dangerous_pattern") {
+            return &cchooks.RawResponse{
+                ExitCode: 1,
+                Output:   "Blocked by raw handler",
+            }, nil
+        }
+        // Return nil to continue normal processing
+        return nil, nil
+    },
+    PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+        return cchooks.Approve(), nil
+    },
+}
+```
+
+The Raw handler:
+- Is called before any JSON parsing or event dispatch
+- Can return a RawResponse with custom exit code and output
+- Returns nil to continue with normal event processing
+- Useful for custom protocols, logging, or preprocessing
+
 ## Error Handling
 
 - Exit code 0: Success

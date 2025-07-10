@@ -381,6 +381,164 @@ func TestHandlerErrors(t *testing.T) {
 	}
 }
 
+func TestRawHandler(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		runner      *Runner
+		wantOutput  string
+		wantErrCode int
+	}{
+		{
+			name:  "Raw handler returns response with output",
+			input: `{"event": "PreToolUse", "session_id": "test"}`,
+			runner: &Runner{
+				Raw: func(ctx context.Context, rawJSON string) (*RawResponse, error) {
+					return &RawResponse{ExitCode: 3, Output: "custom output"}, nil
+				},
+			},
+			wantOutput:  "custom output",
+			wantErrCode: 3,
+		},
+		{
+			name:  "Raw handler returns response without output",
+			input: `{"event": "PreToolUse", "session_id": "test"}`,
+			runner: &Runner{
+				Raw: func(ctx context.Context, rawJSON string) (*RawResponse, error) {
+					return &RawResponse{ExitCode: 5}, nil
+				},
+			},
+			wantOutput:  "",
+			wantErrCode: 5,
+		},
+		{
+			name:  "Raw handler returns nil, continues to normal processing",
+			input: `{"event": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`,
+			runner: &Runner{
+				Raw: func(ctx context.Context, rawJSON string) (*RawResponse, error) {
+					// Return nil to continue normal processing
+					return nil, nil
+				},
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) (*PreToolUseResponse, error) {
+					return Approve(), nil
+				},
+			},
+			wantOutput: `{
+  "decision": "approve"
+}
+`,
+			wantErrCode: 0,
+		},
+		{
+			name:  "Raw handler returns error",
+			input: `{"event": "PreToolUse", "session_id": "test"}`,
+			runner: &Runner{
+				Raw: func(ctx context.Context, rawJSON string) (*RawResponse, error) {
+					return nil, errors.New("raw handler error")
+				},
+			},
+			wantErrCode: 2,
+		},
+		{
+			name:  "Raw handler with Error handler",
+			input: `{"event": "PreToolUse", "session_id": "test"}`,
+			runner: &Runner{
+				Raw: func(ctx context.Context, rawJSON string) (*RawResponse, error) {
+					return nil, errors.New("raw handler error")
+				},
+				Error: func(ctx context.Context, rawJSON string, err error) {
+					if rawJSON != `{"event": "PreToolUse", "session_id": "test"}` {
+						t.Errorf("Error handler got rawJSON = %q", rawJSON)
+					}
+					if err.Error() != "raw handler error" {
+						t.Errorf("Error handler got unexpected error: %v", err)
+					}
+				},
+			},
+			wantErrCode: 2,
+		},
+		{
+			name:  "Raw handler with malformed JSON",
+			input: `{malformed json`,
+			runner: &Runner{
+				Raw: func(ctx context.Context, rawJSON string) (*RawResponse, error) {
+					// Can still process raw JSON even if it's malformed
+					if rawJSON == `{malformed json` {
+						return &RawResponse{ExitCode: 7, Output: "handled malformed"}, nil
+					}
+					return nil, nil
+				},
+			},
+			wantOutput:  "handled malformed",
+			wantErrCode: 7,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up stdin
+			oldStdin := os.Stdin
+			r, w, _ := os.Pipe()
+			os.Stdin = r
+			w.Write([]byte(tt.input))
+			w.Close()
+			defer func() { os.Stdin = oldStdin }()
+
+			// Set up stdout
+			oldStdout := os.Stdout
+			rOut, wOut, _ := os.Pipe()
+			os.Stdout = wOut
+			defer func() { os.Stdout = oldStdout }()
+
+			// Set up stderr
+			oldStderr := os.Stderr
+			rErr, wErr, _ := os.Pipe()
+			os.Stderr = wErr
+			defer func() { os.Stderr = oldStderr }()
+
+			// Capture exit code
+			exitCode := 0
+			oldExit := osExit
+			osExit = func(code int) {
+				exitCode = code
+				panic("exit")
+			}
+			defer func() { osExit = oldExit }()
+
+			// Run the test
+			func() {
+				defer func() {
+					if r := recover(); r != nil && r != "exit" {
+						panic(r)
+					}
+				}()
+				err := tt.runner.Run(context.Background())
+				if err != nil {
+					exitCode = 1
+				}
+			}()
+
+			// Close write ends
+			wOut.Close()
+			wErr.Close()
+
+			// Read output
+			output, _ := io.ReadAll(rOut)
+			errOutput, _ := io.ReadAll(rErr)
+
+			// Check exit code
+			if exitCode != tt.wantErrCode {
+				t.Errorf("exit code = %d, want %d, stderr = %s", exitCode, tt.wantErrCode, errOutput)
+			}
+
+			// Check output
+			if string(output) != tt.wantOutput {
+				t.Errorf("output = %q, want %q", string(output), tt.wantOutput)
+			}
+		})
+	}
+}
+
 func TestErrorHandler(t *testing.T) {
 	tests := []struct {
 		name          string

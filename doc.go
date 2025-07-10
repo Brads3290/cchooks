@@ -74,6 +74,34 @@ The SDK includes testing utilities for validating hook behavior:
 	err := tester.AssertPreToolUseApproves("Bash", bashInput)
 	err := tester.AssertPreToolUseBlocks("Bash", dangerousInput)
 
+# Raw Handler
+
+For complete control over hook processing, you can provide a Raw handler that receives
+the raw JSON string before any parsing:
+
+	runner := &cchooks.Runner{
+	    Raw: func(ctx context.Context, rawJSON string) (*cchooks.RawResponse, error) {
+	        // Process raw JSON directly
+	        if strings.Contains(rawJSON, "dangerous") {
+	            return &cchooks.RawResponse{
+	                ExitCode: 1,
+	                Output:   "Blocked by raw handler",
+	            }, nil
+	        }
+	        // Return nil to continue normal processing
+	        return nil, nil
+	    },
+	    PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+	        return cchooks.Approve(), nil
+	    },
+	}
+
+The Raw handler:
+  - Is called before any JSON parsing or event dispatch
+  - Can return a RawResponse with custom exit code and output
+  - Returns nil to continue with normal event processing
+  - Useful for custom protocols, logging, or preprocessing
+
 # Error Handling
 
 Hooks communicate with Claude Code through exit codes:

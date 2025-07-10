@@ -13,6 +13,10 @@ var osExit = os.Exit
 
 // Runner handles event dispatch and I/O for a single hook binary
 type Runner struct {
+	// Raw is called before any other processing with the raw JSON string
+	// If it returns a non-nil response, that response is used and no further processing occurs
+	// If it returns nil, normal event processing continues
+	Raw          func(context.Context, string) (*RawResponse, error)
 	PreToolUse   func(context.Context, *PreToolUseEvent) (*PreToolUseResponse, error)
 	PostToolUse  func(context.Context, *PostToolUseEvent) (*PostToolUseResponse, error)
 	Notification func(context.Context, *NotificationEvent) (*NotificationResponse, error)
@@ -29,6 +33,28 @@ func (r *Runner) Run(ctx context.Context) error {
 	rawJSON, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return fmt.Errorf("failed to read stdin: %w", err)
+	}
+
+	// Call Raw handler if provided
+	if r.Raw != nil {
+		response, err := r.Raw(ctx, string(rawJSON))
+		if err != nil {
+			if r.Error != nil {
+				r.Error(ctx, string(rawJSON), err)
+			}
+			// Exit code 2 sends error to Claude
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			osExit(2)
+		}
+		
+		// If Raw handler returns a response, use it and exit
+		if response != nil {
+			if response.Output != "" {
+				fmt.Fprint(os.Stdout, response.Output)
+			}
+			osExit(response.ExitCode)
+		}
+		// If Raw handler returns nil, continue with normal processing
 	}
 
 	// Parse JSON
