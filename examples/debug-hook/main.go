@@ -15,12 +15,12 @@ func main() {
 
 	runner := &cchooks.Runner{
 		// Raw handler to see exactly what's being received
-		Raw: func(ctx context.Context, rawJSON string) (*cchooks.RawResponse, error) {
+		Raw: func(ctx context.Context, rawJSON string) *cchooks.RawResponse {
 			logger.Printf("Raw JSON received: %s", rawJSON)
 			logger.Printf("JSON length: %d bytes", len(rawJSON))
 
 			// Continue with normal processing
-			return nil, nil
+			return nil
 		},
 
 		// Error handler to log any errors
@@ -34,25 +34,25 @@ func main() {
 		},
 
 		// Handle all event types
-		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) cchooks.PreToolUseResponseInterface {
 			logger.Printf("PreToolUse: Tool=%s, Session=%s", event.ToolName, event.SessionID)
-			return cchooks.Approve(), nil
+			return cchooks.Approve()
 		},
 
-		PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) (*cchooks.PostToolUseResponse, error) {
+		PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) cchooks.PostToolUseResponseInterface {
 			logger.Printf("PostToolUse: Tool=%s, Session=%s", event.ToolName, event.SessionID)
-			return cchooks.Allow(), nil
+			return cchooks.Allow()
 		},
 
-		Notification: func(ctx context.Context, event *cchooks.NotificationEvent) (*cchooks.NotificationResponse, error) {
+		Notification: func(ctx context.Context, event *cchooks.NotificationEvent) cchooks.NotificationResponseInterface {
 			logger.Printf("Notification: Session=%s", event.SessionID)
-			return cchooks.OK(), nil
+			return cchooks.OK()
 		},
 
-		Stop: func(ctx context.Context, event *cchooks.StopEvent) (*cchooks.StopResponse, error) {
+		Stop: func(ctx context.Context, event *cchooks.StopEvent) cchooks.StopResponseInterface {
 			logger.Printf("Stop: SessionID=%s, StopHookActive=%v",
 				event.SessionID, event.StopHookActive)
-			return cchooks.Continue(), nil
+			return cchooks.Continue()
 		},
 	}
 

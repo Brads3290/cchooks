@@ -11,12 +11,12 @@ import (
 
 func main() {
 	runner := &cchooks.Runner{
-		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) cchooks.PreToolUseResponseInterface {
 			// Handle MCP tools differently from built-in tools
 			if event.IsMCPTool() {
 				mcpTool, err := event.AsMCPTool()
 				if err != nil {
-					return nil, err
+					return cchooks.Error(err)
 				}
 
 				// Log MCP tool information
@@ -37,7 +37,7 @@ func main() {
 					if mcpTool.ToolName == "get_forecast" {
 						if location, ok := params["location"].(string); ok {
 							if location == "" {
-								return cchooks.Block("Location is required for weather forecast"), nil
+								return cchooks.Block("Location is required for weather forecast")
 							}
 						}
 					}
@@ -45,20 +45,20 @@ func main() {
 				case "database":
 					// More restrictive for database operations
 					if mcpTool.ToolName == "delete_user" {
-						return cchooks.Block("Database deletions are not allowed via MCP"), nil
+						return cchooks.Block("Database deletions are not allowed via MCP")
 					}
 
 				case "api":
 					// Check API endpoints
 					if endpoint, ok := params["endpoint"].(string); ok {
 						if endpoint == "/admin" {
-							return cchooks.Block("Admin endpoints are restricted"), nil
+							return cchooks.Block("Admin endpoints are restricted")
 						}
 					}
 				}
 
 				// Default: approve MCP tools
-				return cchooks.Approve(), nil
+				return cchooks.Approve()
 			}
 
 			// Handle built-in tools as usual
@@ -66,32 +66,32 @@ func main() {
 			case "Bash":
 				bash, err := event.AsBash()
 				if err != nil {
-					return nil, err
+					return cchooks.Error(err)
 				}
 				log.Printf("Bash command: %s", bash.Command)
 
 			case "Edit":
 				edit, err := event.AsEdit()
 				if err != nil {
-					return nil, err
+					return cchooks.Error(err)
 				}
 				log.Printf("Editing file: %s", edit.FilePath)
 			}
 
-			return cchooks.Approve(), nil
+			return cchooks.Approve()
 		},
 
-		PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) (*cchooks.PostToolUseResponse, error) {
+		PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) cchooks.PostToolUseResponseInterface {
 			if event.IsMCPTool() {
 				// Handle MCP tool responses
 				mcpTool, err := event.InputAsMCPTool()
 				if err != nil {
-					return nil, err
+					return cchooks.Error(err)
 				}
 
 				mcpOutput, err := event.ResponseAsMCPTool()
 				if err != nil {
-					return nil, err
+					return cchooks.Error(err)
 				}
 
 				log.Printf("MCP Tool completed - Server: %s, Tool: %s", mcpTool.MCPName, mcpTool.ToolName)
@@ -106,7 +106,7 @@ func main() {
 
 					// Example: Check for errors in response
 					if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
-						return cchooks.PostBlock(fmt.Sprintf("MCP tool error: %s", errorMsg)), nil
+						return cchooks.PostBlock(fmt.Sprintf("MCP tool error: %s", errorMsg))
 					}
 				}
 			} else {
@@ -114,13 +114,13 @@ func main() {
 				log.Printf("Built-in tool %s completed", event.ToolName)
 			}
 
-			return cchooks.Allow(), nil
+			return cchooks.Allow()
 		},
 
-		Notification: func(ctx context.Context, event *cchooks.NotificationEvent) (*cchooks.NotificationResponse, error) {
+		Notification: func(ctx context.Context, event *cchooks.NotificationEvent) cchooks.NotificationResponseInterface {
 			// Could check for MCP-related notifications
 			log.Printf("Notification: %s", event.Message)
-			return cchooks.OK(), nil
+			return cchooks.OK()
 		},
 	}
 

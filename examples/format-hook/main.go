@@ -12,10 +12,10 @@ import (
 
 func main() {
 	runner := &cchooks.Runner{
-		PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) (*cchooks.PostToolUseResponse, error) {
+		PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) cchooks.PostToolUseResponseInterface {
 			// Only process successful file modifications
 			if event.ToolName != "Edit" && event.ToolName != "Write" && event.ToolName != "MultiEdit" {
-				return cchooks.Allow(), nil
+				return cchooks.Allow()
 			}
 
 			// Get file path
@@ -36,7 +36,7 @@ func main() {
 			}
 
 			if filePath == "" {
-				return cchooks.Allow(), nil
+				return cchooks.Allow()
 			}
 
 			// Format based on file extension
@@ -85,7 +85,7 @@ func main() {
 				}
 			}
 
-			return cchooks.Allow(), nil
+			return cchooks.Allow()
 		},
 	}
 

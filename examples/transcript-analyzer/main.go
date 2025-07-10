@@ -11,7 +11,7 @@ import (
 func main() {
 	runner := &cchooks.Runner{
 		// Analyze transcript on stop events
-		Stop: func(ctx context.Context, event *cchooks.StopEvent) (*cchooks.StopResponse, error) {
+		Stop: func(ctx context.Context, event *cchooks.StopEvent) cchooks.StopResponseInterface {
 			// Log basic information
 			log.Printf("Stop event received. Session: %s, StopHookActive: %v\n",
 				event.SessionID, event.StopHookActive)
@@ -65,14 +65,14 @@ func main() {
 
 			// Allow stop on subsequent attempts, block on first
 			if event.StopHookActive {
-				return cchooks.Continue(), nil
+				return cchooks.Continue()
 			} else {
-				return cchooks.BlockStop("Transcript analyzed. Stop again to confirm."), nil
+				return cchooks.BlockStop("Transcript analyzed. Stop again to confirm.")
 			}
 		},
 
 		// Use StopOnce for first-stop specific logic
-		StopOnce: func(ctx context.Context, event *cchooks.StopEvent) (*cchooks.StopResponse, error) {
+		StopOnce: func(ctx context.Context, event *cchooks.StopEvent) cchooks.StopResponseInterface {
 			log.Println("First stop detected - performing initial analysis")
 
 			// Could save transcript to file, send to analytics service, etc.
@@ -80,7 +80,7 @@ func main() {
 				log.Printf("Transcript available at: %s\n", event.TranscriptPath)
 			}
 
-			return cchooks.BlockStop("First stop blocked for analysis. Stop again to exit."), nil
+			return cchooks.BlockStop("First stop blocked for analysis. Stop again to exit.")
 		},
 	}
 

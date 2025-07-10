@@ -15,15 +15,15 @@ type Runner struct {
 	// Raw is called before any other processing with the raw JSON string
 	// If it returns a non-nil response, that response is used and no further processing occurs
 	// If it returns nil, normal event processing continues
-	Raw          func(context.Context, string) (*RawResponse, error)
-	PreToolUse   func(context.Context, *PreToolUseEvent) (*PreToolUseResponse, error)
-	PostToolUse  func(context.Context, *PostToolUseEvent) (*PostToolUseResponse, error)
-	Notification func(context.Context, *NotificationEvent) (*NotificationResponse, error)
-	Stop         func(context.Context, *StopEvent) (*StopResponse, error)
+	Raw          func(context.Context, string) *RawResponse
+	PreToolUse   func(context.Context, *PreToolUseEvent) PreToolUseResponseInterface
+	PostToolUse  func(context.Context, *PostToolUseEvent) PostToolUseResponseInterface
+	Notification func(context.Context, *NotificationEvent) NotificationResponseInterface
+	Stop         func(context.Context, *StopEvent) StopResponseInterface
 	// StopOnce is called for Stop events only when stop_hook_active is false
 	// This allows hooks to handle the first stop event differently
 	// If both Stop and StopOnce are defined, StopOnce takes precedence when stop_hook_active is false
-	StopOnce func(context.Context, *StopEvent) (*StopResponse, error)
+	StopOnce func(context.Context, *StopEvent) StopResponseInterface
 	// Error is called when any error occurs inside the SDK
 	// It receives the raw JSON string that was passed to the hook and the error
 	// If it returns a non-nil RawResponse, that response is used instead of the default error handling
@@ -101,11 +101,7 @@ func (r *Runner) RunContext(ctx context.Context) {
 
 	// Call Raw handler if provided
 	if r.Raw != nil {
-		response, err := r.Raw(ctx, string(rawJSON))
-		if err != nil {
-			r.handleError(ctx, string(rawJSON), err)
-			return // handleError exits, so this is unreachable
-		}
+		response := r.Raw(ctx, string(rawJSON))
 
 		// If Raw handler returns a response, use it and exit
 		if response != nil {
@@ -174,10 +170,7 @@ func (r *Runner) handlePreToolUse(ctx context.Context, rawEvent map[string]inter
 	}
 
 	// Call handler
-	response, err := r.PreToolUse(ctx, &event)
-	if err != nil {
-		return err
-	}
+	response := r.PreToolUse(ctx, &event)
 
 	// Handle response
 	if err := outputResponse(response); err != nil {
@@ -203,10 +196,7 @@ func (r *Runner) handlePostToolUse(ctx context.Context, rawEvent map[string]inte
 	}
 
 	// Call handler
-	response, err := r.PostToolUse(ctx, &event)
-	if err != nil {
-		return err
-	}
+	response := r.PostToolUse(ctx, &event)
 
 	// Handle response
 	if err := outputResponse(response); err != nil {
@@ -232,10 +222,7 @@ func (r *Runner) handleNotification(ctx context.Context, rawEvent map[string]int
 	}
 
 	// Call handler
-	response, err := r.Notification(ctx, &event)
-	if err != nil {
-		return err
-	}
+	response := r.Notification(ctx, &event)
 
 	// Handle response
 	if err := outputResponse(response); err != nil {
@@ -272,7 +259,7 @@ func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}
 	}
 
 	// Determine which handler to use
-	var handler func(context.Context, *StopEvent) (*StopResponse, error)
+	var handler func(context.Context, *StopEvent) StopResponseInterface
 
 	// If stop_hook_active is false and StopOnce is defined, use StopOnce
 	if !event.StopHookActive && r.StopOnce != nil {
@@ -288,10 +275,7 @@ func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}
 	}
 
 	// Call the selected handler
-	response, err := handler(ctx, &event)
-	if err != nil {
-		return err
-	}
+	response := handler(ctx, &event)
 
 	// Handle response
 	if err := outputResponse(response); err != nil {
@@ -301,6 +285,11 @@ func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}
 }
 
 func outputResponse(response interface{}) error {
+	// Check if it's an error response
+	if errResp, ok := response.(*ErrorResponse); ok {
+		return errResp.Error
+	}
+	
 	// Check if response is empty (allow action)
 	if isEmpty(response) {
 		// Empty response uses exit code 0
@@ -327,6 +316,8 @@ func isEmpty(response interface{}) bool {
 		return v.Continue == nil && v.StopReason == ""
 	case *StopResponse:
 		return v.Decision == "" && v.Continue == nil && v.StopReason == "" && v.Reason == ""
+	case *ErrorResponse:
+		return false // ErrorResponse is never empty
 	default:
 		return false
 	}

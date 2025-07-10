@@ -111,12 +111,12 @@ func TestSecurityHook(t *testing.T) {
 func createRunner() *cchooks.Runner {
 	// Copy the actual logic from main.go
 	return &cchooks.Runner{
-		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) *cchooks.PreToolUseResponse {
 			switch event.ToolName {
 			case "Bash":
 				bash, err := event.AsBash()
 				if err != nil {
-					return nil, err
+					return cchooks.Error(err)
 				}
 
 				// Block dangerous commands
@@ -135,13 +135,13 @@ func createRunner() *cchooks.Runner {
 				if event.ToolName == "Edit" {
 					edit, err := event.AsEdit()
 					if err != nil {
-						return nil, err
+						return cchooks.Error(err)
 					}
 					filePath = edit.FilePath
 				} else {
 					write, err := event.AsWrite()
 					if err != nil {
-						return nil, err
+						return cchooks.Error(err)
 					}
 					filePath = write.FilePath
 				}

@@ -4,6 +4,9 @@
 # General: Use sequential thinking
 You should generally make use of sequential thinking to help you reason. Simple requests may not require this, but you should be aware that it is available when more than a simple answer is required.
 
+# CRITICAL: Serena MCP
+NEVER EVER use regex_replace. Use Edit/MultiEdit instead.
+
 ## Documentation is Secondary to Tasks
 **When the user provides information WHILE giving you a task:**
 1. Document it quickly and quietly in the appropriate serena memory file

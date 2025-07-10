@@ -12,19 +12,19 @@ import (
 
 func main() {
 	runner := &cchooks.Runner{
-		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) cchooks.PreToolUseResponseInterface {
 			switch event.ToolName {
 			case "Bash":
 				bash, err := event.AsBash()
 				if err != nil {
-					return nil, err
+					return cchooks.Error(err)
 				}
 
 				// Block dangerous commands
 				dangerous := []string{"rm -rf", "sudo rm", "dd if=", ":(){ :|: & };:"}
 				for _, pattern := range dangerous {
 					if strings.Contains(bash.Command, pattern) {
-						return cchooks.Block(fmt.Sprintf("Dangerous command pattern detected: %s", pattern)), nil
+						return cchooks.Block(fmt.Sprintf("Dangerous command pattern detected: %s", pattern))
 					}
 				}
 
@@ -33,7 +33,7 @@ func main() {
 					log.Printf("WARNING: sudo command detected: %s", bash.Command)
 				}
 
-				return cchooks.Approve(), nil
+				return cchooks.Approve()
 
 			case "Edit", "Write":
 				// Check file paths
@@ -41,38 +41,38 @@ func main() {
 				if event.ToolName == "Edit" {
 					edit, err := event.AsEdit()
 					if err != nil {
-						return nil, err
+						return cchooks.Error(err)
 					}
 					filePath = edit.FilePath
 				} else {
 					write, err := event.AsWrite()
 					if err != nil {
-						return nil, err
+						return cchooks.Error(err)
 					}
 					filePath = write.FilePath
 				}
 
 				// Block editing production files
 				if strings.Contains(filePath, "/production/") {
-					return cchooks.Block("Cannot edit production files"), nil
+					return cchooks.Block("Cannot edit production files")
 				}
 
 				// Block editing system files
 				systemPaths := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/boot/"}
 				for _, systemPath := range systemPaths {
 					if strings.HasPrefix(filePath, systemPath) {
-						return cchooks.Block(fmt.Sprintf("Cannot edit system files in %s", systemPath)), nil
+						return cchooks.Block(fmt.Sprintf("Cannot edit system files in %s", systemPath))
 					}
 				}
 
-				return cchooks.Approve(), nil
+				return cchooks.Approve()
 
 			default:
-				return cchooks.Approve(), nil
+				return cchooks.Approve()
 			}
 		},
 
-		PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) (*cchooks.PostToolUseResponse, error) {
+		PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) cchooks.PostToolUseResponseInterface {
 			// Auto-format code after edits
 			if event.ToolName == "Edit" || event.ToolName == "Write" {
 				var filePath string
@@ -100,10 +100,10 @@ func main() {
 				}
 			}
 
-			return cchooks.Allow(), nil
+			return cchooks.Allow()
 		},
 
-		Notification: func(ctx context.Context, event *cchooks.NotificationEvent) (*cchooks.NotificationResponse, error) {
+		Notification: func(ctx context.Context, event *cchooks.NotificationEvent) cchooks.NotificationResponseInterface {
 			// Log notifications
 			log.Printf("Claude notification: %s", event.Message)
 
@@ -114,12 +114,14 @@ func main() {
 				cmd.Run()
 			}
 
-			return cchooks.OK(), nil
+			return cchooks.OK()
 		},
 
-		Stop: func(ctx context.Context, event *cchooks.StopEvent) (*cchooks.StopResponse, error) {
-			log.Printf("Claude session %s stopped", event.SessionID)
-			return cchooks.Continue(), nil
+		Stop: func(ctx context.Context, event *cchooks.StopEvent) cchooks.StopResponseInterface {
+			// Cleanup temporary files
+			exec.Command("rm", "-f", "/tmp/claude-*").Run()
+			log.Printf("Session %s stopped", event.SessionID)
+			return cchooks.Continue()
 		},
 	}
 

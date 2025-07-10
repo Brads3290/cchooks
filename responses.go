@@ -1,5 +1,22 @@
 package cchooks
 
+// Response interfaces - these are returned by handlers
+type PreToolUseResponseInterface interface {
+	isPreToolUseResponse()
+}
+
+type PostToolUseResponseInterface interface {
+	isPostToolUseResponse()
+}
+
+type NotificationResponseInterface interface {
+	isNotificationResponse()
+}
+
+type StopResponseInterface interface {
+	isStopResponse()
+}
+
 // Response types with event-specific decision options
 
 // PreToolUseResponse is the response for PreToolUse events.
@@ -39,6 +56,18 @@ const (
 	PostToolUseBlock  = "block"
 	StopBlock         = "block"
 )
+
+// Interface implementation methods
+func (*PreToolUseResponse) isPreToolUseResponse() {}
+func (*PostToolUseResponse) isPostToolUseResponse() {}
+func (*NotificationResponse) isNotificationResponse() {}
+func (*StopResponse) isStopResponse() {}
+
+// ErrorResponse implements all response interfaces
+func (*ErrorResponse) isPreToolUseResponse() {}
+func (*ErrorResponse) isPostToolUseResponse() {}
+func (*ErrorResponse) isNotificationResponse() {}
+func (*ErrorResponse) isStopResponse() {}
 
 // Helper functions for common responses
 
@@ -105,4 +134,18 @@ func StopFromStop(reason string) *StopResponse {
 type RawResponse struct {
 	ExitCode int
 	Output   string
+}
+
+// ErrorResponse is a special response type that indicates an error occurred
+type ErrorResponse struct {
+	Error   error  `json:"-"`
+	Message string `json:"error,omitempty"`
+}
+
+// Error creates an ErrorResponse from an error
+func Error(err error) *ErrorResponse {
+	return &ErrorResponse{
+		Error:   err,
+		Message: err.Error(),
+	}
 }
