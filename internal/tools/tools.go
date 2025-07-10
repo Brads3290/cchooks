@@ -1,7 +1,11 @@
 // Package tools provides strongly typed tool input/output structures and parsing methods for Claude Code hooks.
 package tools
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
 
 // Tool input types
 
@@ -138,6 +142,22 @@ type TaskInput struct {
 // ExitPlanModeInput represents input for the ExitPlanMode tool.
 type ExitPlanModeInput struct {
 	Plan string `json:"plan" validate:"required"`
+}
+
+// MCP tool types
+
+// MCPTool represents a parsed MCP tool with extracted server and tool names.
+type MCPTool struct {
+	MCPName  string          `json:"mcp_name"`  // e.g., "weather" (extracted from mcp__weather__get_forecast)
+	ToolName string          `json:"tool_name"` // e.g., "get_forecast" (part after server name)
+	RawInput json.RawMessage `json:"raw_input"` // Raw JSON input for flexible parsing
+}
+
+// MCPToolOutput represents output from an MCP tool.
+type MCPToolOutput struct {
+	MCPName   string          `json:"mcp_name"`   // e.g., "weather"
+	ToolName  string          `json:"tool_name"`  // e.g., "get_forecast"
+	RawOutput json.RawMessage `json:"raw_output"` // Raw JSON output
 }
 
 // Tool output types
@@ -320,4 +340,43 @@ func ParseGrepResponse(e EventWithToolResponse) (*GrepOutput, error) {
 func ParseLSResponse(e EventWithToolResponse) (*LSOutput, error) {
 	var output LSOutput
 	return &output, json.Unmarshal(e.GetToolResponse(), &output)
+}
+
+// ParseMCPTool parses an MCP tool from the tool name and event.
+func ParseMCPTool(toolName string, e EventWithToolInput) (*MCPTool, error) {
+	if !strings.HasPrefix(toolName, "mcp__") {
+		return nil, fmt.Errorf("not an MCP tool: %s", toolName)
+	}
+
+	// Extract MCP server name and tool name from the full tool name
+	// Format: mcp__servername__toolname
+	parts := strings.SplitN(toolName, "__", 3)
+	if len(parts) < 3 {
+		return nil, fmt.Errorf("invalid MCP tool name format: %s", toolName)
+	}
+
+	return &MCPTool{
+		MCPName:  parts[1],                     // servername
+		ToolName: strings.Join(parts[2:], "__"), // toolname (may contain __)
+		RawInput: e.GetToolInput(),
+	}, nil
+}
+
+// ParseMCPToolResponse parses an MCP tool response from the tool name and event.
+func ParseMCPToolResponse(toolName string, e EventWithToolResponse) (*MCPToolOutput, error) {
+	if !strings.HasPrefix(toolName, "mcp__") {
+		return nil, fmt.Errorf("not an MCP tool: %s", toolName)
+	}
+
+	// Extract MCP server name and tool name from the full tool name
+	parts := strings.SplitN(toolName, "__", 3)
+	if len(parts) < 3 {
+		return nil, fmt.Errorf("invalid MCP tool name format: %s", toolName)
+	}
+
+	return &MCPToolOutput{
+		MCPName:   parts[1],                     // servername
+		ToolName:  strings.Join(parts[2:], "__"), // toolname (may contain __)
+		RawOutput: e.GetToolResponse(),
+	}, nil
 }

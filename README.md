@@ -149,6 +149,47 @@ func handlePreToolUse(ctx context.Context, event *cchooks.PreToolUseEvent) (*cch
 
 All 15+ Claude Code tools are supported with full type safety.
 
+### MCP Tool Support
+
+The SDK provides built-in support for MCP (Model Context Protocol) tools, which follow the naming convention `mcp__servername__toolname`:
+
+```go
+func handlePreToolUse(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+    // Check if it's an MCP tool
+    if event.IsMCPTool() {
+        mcpTool, err := event.AsMCPTool()
+        if err != nil {
+            return nil, err
+        }
+        
+        // Access MCP tool details
+        log.Printf("MCP Server: %s", mcpTool.MCPName)  // e.g., "weather"
+        log.Printf("Tool Name: %s", mcpTool.ToolName)  // e.g., "get_forecast"
+        
+        // Parse custom parameters
+        var params map[string]interface{}
+        json.Unmarshal(mcpTool.RawInput, &params)
+        
+        // Apply server-specific logic
+        switch mcpTool.MCPName {
+        case "weather":
+            // Handle weather MCP tools
+        case "database":
+            // Handle database MCP tools
+        }
+    }
+    
+    return cchooks.Approve(), nil
+}
+```
+
+MCP tool methods:
+- `IsMCPTool()` - Returns true if the tool has the `mcp__` prefix
+- `MCPToolName()` - Returns the full MCP tool name (empty string for non-MCP tools)
+- `AsMCPTool()` - Parses the tool as an MCP tool with server/tool name extraction
+- `InputAsMCPTool()` - For PostToolUse events
+- `ResponseAsMCPTool()` - For PostToolUse event responses
+
 ## Error Handling
 
 The SDK uses exit codes to communicate with Claude Code:
@@ -587,6 +628,9 @@ Complete working examples are available in the `examples/` directory:
 - `format-hook`: Auto-formatting for various file types
 - `simple-hook`: Minimal example with logging
 - `advanced-hook`: Demonstrates all features including Raw and Error handlers
+- `mcp-hook`: Handling MCP (Model Context Protocol) tools
+- `stop-once-hook`: Using the StopOnce handler for first-stop logic
+- `transcript-analyzer`: Analyzing conversation transcripts in Stop events
 
 ## Contributing
 

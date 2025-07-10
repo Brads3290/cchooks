@@ -2,6 +2,7 @@ package cchooks
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/brads3290/cchooks/internal/tools"
 )
@@ -243,5 +244,55 @@ func (e *PostToolUseEvent) ResponseAsGrep() (*tools.GrepOutput, error) {
 // ResponseAsLS parses the tool response as LSOutput.
 func (e *PostToolUseEvent) ResponseAsLS() (*tools.LSOutput, error) {
 	return tools.ParseLSResponse(e)
+}
+
+// MCP tool support methods for PreToolUseEvent
+
+// IsMCPTool returns true if this is an MCP tool (has "mcp__" prefix).
+func (e *PreToolUseEvent) IsMCPTool() bool {
+	return strings.HasPrefix(e.ToolName, "mcp__")
+}
+
+// MCPToolName returns the full MCP tool name (e.g., "mcp__weather__get_forecast").
+// Returns empty string for non-MCP tools.
+func (e *PreToolUseEvent) MCPToolName() string {
+	if e.IsMCPTool() {
+		return e.ToolName
+	}
+	return ""
+}
+
+// AsMCPTool parses the tool as an MCP tool.
+// Returns an error if this is not an MCP tool.
+func (e *PreToolUseEvent) AsMCPTool() (*tools.MCPTool, error) {
+	return tools.ParseMCPTool(e.ToolName, e)
+}
+
+// MCP tool support methods for PostToolUseEvent
+
+// IsMCPTool returns true if this is an MCP tool (has "mcp__" prefix).
+func (e *PostToolUseEvent) IsMCPTool() bool {
+	return strings.HasPrefix(e.ToolName, "mcp__")
+}
+
+// MCPToolName returns the full MCP tool name (e.g., "mcp__weather__get_forecast").
+// Returns empty string for non-MCP tools.
+func (e *PostToolUseEvent) MCPToolName() string {
+	if e.IsMCPTool() {
+		return e.ToolName
+	}
+	return ""
+}
+
+// InputAsMCPTool parses the tool input as an MCP tool.
+// Returns an error if this is not an MCP tool.
+func (e *PostToolUseEvent) InputAsMCPTool() (*tools.MCPTool, error) {
+	return tools.ParseMCPTool(e.ToolName, e)
+}
+
+// ResponseAsMCPTool parses the tool response as an MCP tool output.
+// Returns an error if this is not an MCP tool.
+func (e *PostToolUseEvent) ResponseAsMCPTool() (*tools.MCPToolOutput, error) {
+	return tools.ParseMCPToolResponse(e.ToolName, e)
 }
 
