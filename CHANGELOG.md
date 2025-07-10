@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.4.0] - 2025-01-10
+
 ### Changed
 - Error handler now returns `*RawResponse` instead of void
   - Allows custom exit codes and output for error cases
