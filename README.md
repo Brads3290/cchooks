@@ -221,9 +221,18 @@ runner := &cchooks.Runner{
         // Your logic here
         return cchooks.Approve(), nil
     },
-    Error: func(ctx context.Context, rawJSON string, err error) {
+    Error: func(ctx context.Context, rawJSON string, err error) *cchooks.RawResponse {
         // Log errors, send telemetry, etc.
         log.Printf("Hook error: %v, JSON: %s", err, rawJSON)
+        
+        // Return nil to use default error handling (exit code 2)
+        return nil
+        
+        // Or return a custom response
+        // return &cchooks.RawResponse{
+        //     ExitCode: 1,
+        //     Output:   "Custom error message",
+        // }
     },
 }
 ```
@@ -233,6 +242,10 @@ The Error handler is called for:
 - Event validation errors  
 - Handler errors (before they cause exit code 2)
 - Response encoding errors
+- Panics that occur during processing
+
+If the Error handler returns a non-nil RawResponse, that response is used instead of the default error handling.
+If it returns nil, the SDK will exit with code 2 and output the error to stderr.
 
 ## Contributing
 

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Error handler now returns `*RawResponse` instead of void
+  - Allows custom exit codes and output for error cases
+  - If nil is returned, default error handling applies (exit code 2)
+- SDK now recovers from panics and sends them to the error handler
+  - Panics are converted to errors with "panic: " prefix
+  - Error handler is called before the process exits
+
 ## [v0.3.0] - 2025-01-10
 
 ### Changed
