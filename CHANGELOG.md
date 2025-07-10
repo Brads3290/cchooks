@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.0] - 2025-01-10
+
 ### Changed
 - **BREAKING**: Renamed module from `github.com/brads3290/claude-code-hooks-go` to `github.com/brads3290/cchooks`
   - Shorter import path for better developer experience
