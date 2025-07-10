@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunner_Run(t *testing.T) {
@@ -828,4 +829,65 @@ func TestErrorHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStdinTimeout(t *testing.T) {
+	t.Run("stdin timeout", func(t *testing.T) {
+		// Set up a pipe that we won't write to, simulating no stdin input
+		oldStdin := os.Stdin
+		r, _, _ := os.Pipe()
+		os.Stdin = r
+		defer func() {
+			r.Close()
+			os.Stdin = oldStdin
+		}()
+
+		// Set up stderr capture
+		oldStderr := os.Stderr
+		rErr, wErr, _ := os.Pipe()
+		os.Stderr = wErr
+		defer func() { os.Stderr = oldStderr }()
+
+		// Capture exit code
+		var exitCode int
+		runner := &Runner{
+			ExitFn: func(code int) {
+				exitCode = code
+				panic("exit")
+			},
+		}
+
+		// Run the test
+		start := time.Now()
+		func() {
+			defer func() {
+				if r := recover(); r != nil && r != "exit" {
+					panic(r)
+				}
+			}()
+			runner.Run()
+		}()
+		elapsed := time.Since(start)
+
+		// Close stderr write end
+		wErr.Close()
+
+		// Read stderr
+		errOutput, _ := io.ReadAll(rErr)
+
+		// Check that it timed out within reasonable bounds (1s +/- 200ms)
+		if elapsed < 800*time.Millisecond || elapsed > 1200*time.Millisecond {
+			t.Errorf("expected timeout around 1s, got %v", elapsed)
+		}
+
+		// Check exit code
+		if exitCode != 2 {
+			t.Errorf("exit code = %d, want 2", exitCode)
+		}
+
+		// Check error message
+		if !strings.Contains(string(errOutput), "timeout reading stdin") {
+			t.Errorf("stderr = %q, want to contain 'timeout reading stdin'", string(errOutput))
+		}
+	})
 }

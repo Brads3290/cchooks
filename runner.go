@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 )
 
 // Runner handles event dispatch and I/O for a single hook binary
@@ -47,11 +48,30 @@ func (r *Runner) RunContext(ctx context.Context) {
 		r.ExitFn = os.Exit
 	}
 
-	// Read all input for error handling
+	// Read all input with timeout
 	var rawJSON []byte
-	rawJSON, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		r.handleError(ctx, "", fmt.Errorf("failed to read stdin: %w", err))
+	type readResult struct {
+		data []byte
+		err  error
+	}
+	readChan := make(chan readResult, 1)
+
+	// Read stdin in a goroutine
+	go func() {
+		data, err := io.ReadAll(os.Stdin)
+		readChan <- readResult{data, err}
+	}()
+
+	// Wait for read to complete or timeout
+	select {
+	case result := <-readChan:
+		if result.err != nil {
+			r.handleError(ctx, "", fmt.Errorf("failed to read stdin: %w", result.err))
+			return
+		}
+		rawJSON = result.data
+	case <-time.After(1 * time.Second):
+		r.handleError(ctx, "", fmt.Errorf("timeout reading stdin"))
 		return
 	}
 
