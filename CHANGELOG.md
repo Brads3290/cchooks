@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.0] - 2025-01-10
+
 ### Changed
 - Error handler now returns exit code 0 for Stop events when returning nil
   - Stop event errors no longer block Claude from stopping (exit code 0)
   - Other event types still use exit code 2 when Error handler returns nil
   - This prevents error loops where Claude cannot stop due to hook errors
+- README documentation restructured to be more professional
+  - Removed tutorial-style language while maintaining logical progression
+  - Reorganized into standard documentation sections
+  - Consolidated examples for better readability
 
 ## [v0.4.0] - 2025-01-10
 
