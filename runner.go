@@ -1,6 +1,7 @@
 package cchooks
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -221,6 +222,21 @@ func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}
 		return fmt.Errorf("failed to parse StopEvent: %w", err)
 	}
 
+	// Read and parse transcript if transcript_path is provided
+	if event.TranscriptPath != "" {
+		transcript, err := readTranscript(event.TranscriptPath)
+		if err != nil {
+			// Log error but don't fail - transcript is optional enrichment
+			// The handler can still work without it
+			event.Transcript = []TranscriptEntry{}
+		} else {
+			event.Transcript = transcript
+		}
+	} else {
+		// Ensure transcript is never nil
+		event.Transcript = []TranscriptEntry{}
+	}
+
 	// Determine which handler to use
 	var handler func(context.Context, *StopEvent) (*StopResponse, error)
 	
@@ -312,4 +328,42 @@ func (r *Runner) handleError(ctx context.Context, rawJSON string, err error) {
 	}
 	
 	osExit(exitCode)
+}
+
+// readTranscript reads a JSONL transcript file and returns parsed entries
+func readTranscript(path string) ([]TranscriptEntry, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open transcript file: %w", err)
+	}
+	defer file.Close()
+
+	var entries []TranscriptEntry
+	scanner := bufio.NewScanner(file)
+	lineNum := 0
+	
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		
+		// Skip empty lines
+		if line == "" {
+			continue
+		}
+		
+		var entry TranscriptEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			// Continue on error - some lines might be malformed
+			// but we want to read as much as possible
+			continue
+		}
+		
+		entries = append(entries, entry)
+	}
+	
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading transcript file: %w", err)
+	}
+	
+	return entries, nil
 }

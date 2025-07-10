@@ -77,11 +77,12 @@ func (t *TestRunner) TestNotification(message string) (*NotificationResponse, er
 }
 
 // TestStop tests a Stop handler
-func (t *TestRunner) TestStop(stopHookActive bool, transcript []interface{}) (*StopResponse, error) {
+func (t *TestRunner) TestStop(stopHookActive bool, transcript []TranscriptEntry) (*StopResponse, error) {
 	event := &StopEvent{
 		SessionID:      "test-session",
 		StopHookActive: stopHookActive,
 		Transcript:     transcript,
+		TranscriptPath: "", // Empty path for test
 	}
 
 	if t.runner.Stop == nil {
@@ -196,7 +197,7 @@ func (t *TestRunner) AssertNotificationOK(message string) error {
 }
 
 // AssertStopContinues asserts that a Stop handler continues
-func (t *TestRunner) AssertStopContinues(stopHookActive bool, transcript []interface{}) error {
+func (t *TestRunner) AssertStopContinues(stopHookActive bool, transcript []TranscriptEntry) error {
 	resp, err := t.TestStop(stopHookActive, transcript)
 	if err != nil {
 		return err
@@ -208,7 +209,7 @@ func (t *TestRunner) AssertStopContinues(stopHookActive bool, transcript []inter
 }
 
 // AssertStopBlocks asserts that a Stop handler blocks
-func (t *TestRunner) AssertStopBlocks(stopHookActive bool, transcript []interface{}) error {
+func (t *TestRunner) AssertStopBlocks(stopHookActive bool, transcript []TranscriptEntry) error {
 	resp, err := t.TestStop(stopHookActive, transcript)
 	if err != nil {
 		return err

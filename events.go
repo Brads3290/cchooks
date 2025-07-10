@@ -26,9 +26,10 @@ type NotificationEvent struct {
 }
 
 type StopEvent struct {
-	SessionID      string        `json:"session_id"`
-	StopHookActive bool          `json:"stop_hook_active"`
-	Transcript     []interface{} `json:"transcript"`
+	SessionID      string             `json:"session_id"`
+	StopHookActive bool               `json:"stop_hook_active"`
+	TranscriptPath string             `json:"transcript_path"`
+	Transcript     []TranscriptEntry  `json:"transcript"`
 }
 
 // Interface implementations for tools package

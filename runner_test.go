@@ -77,7 +77,7 @@ func TestRunner_Run(t *testing.T) {
 		},
 		{
 			name:  "Stop continue",
-			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript": []}`,
+			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript_path": ""}`,
 			runner: &Runner{
 				Stop: func(ctx context.Context, event *StopEvent) (*StopResponse, error) {
 					return Continue(), nil
@@ -87,7 +87,7 @@ func TestRunner_Run(t *testing.T) {
 		},
 		{
 			name:  "StopOnce handler when stop_hook_active is false",
-			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": false, "transcript": []}`,
+			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": false, "transcript_path": ""}`,
 			runner: &Runner{
 				StopOnce: func(ctx context.Context, event *StopEvent) (*StopResponse, error) {
 					return BlockStop("stopping once"), nil
@@ -101,7 +101,7 @@ func TestRunner_Run(t *testing.T) {
 		},
 		{
 			name:  "StopOnce not called when stop_hook_active is true",
-			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript": []}`,
+			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript_path": ""}`,
 			runner: &Runner{
 				StopOnce: func(ctx context.Context, event *StopEvent) (*StopResponse, error) {
 					t.Error("StopOnce should not be called when stop_hook_active is true")
@@ -115,7 +115,7 @@ func TestRunner_Run(t *testing.T) {
 		},
 		{
 			name:  "StopOnce takes precedence over Stop when stop_hook_active is false",
-			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": false, "transcript": []}`,
+			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": false, "transcript_path": ""}`,
 			runner: &Runner{
 				StopOnce: func(ctx context.Context, event *StopEvent) (*StopResponse, error) {
 					return BlockStop("from StopOnce"), nil
@@ -133,7 +133,7 @@ func TestRunner_Run(t *testing.T) {
 		},
 		{
 			name:  "Stop handler called when StopOnce not defined and stop_hook_active is false",
-			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": false, "transcript": []}`,
+			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": false, "transcript_path": ""}`,
 			runner: &Runner{
 				Stop: func(ctx context.Context, event *StopEvent) (*StopResponse, error) {
 					if !event.StopHookActive {
@@ -746,7 +746,7 @@ func TestErrorHandler(t *testing.T) {
 		},
 		{
 			name:  "Stop event error returns exit code 0",
-			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript": []}`,
+			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript_path": ""}`,
 			runner: &Runner{
 				Stop: func(ctx context.Context, event *StopEvent) (*StopResponse, error) {
 					return nil, errors.New("stop handler error")

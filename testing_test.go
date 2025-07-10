@@ -123,7 +123,7 @@ func TestTestRunner(t *testing.T) {
 		tr := NewTestRunner(runner)
 
 		// Test continue
-		resp, err := tr.TestStop(true, []interface{}{})
+		resp, err := tr.TestStop(true, []TranscriptEntry{})
 		if err != nil {
 			t.Fatalf("TestStop error = %v", err)
 		}
@@ -132,7 +132,7 @@ func TestTestRunner(t *testing.T) {
 		}
 
 		// Test block
-		resp, err = tr.TestStop(false, []interface{}{})
+		resp, err = tr.TestStop(false, []TranscriptEntry{})
 		if err != nil {
 			t.Fatalf("TestStop error = %v", err)
 		}
@@ -160,7 +160,7 @@ func TestTestRunner(t *testing.T) {
 			t.Errorf("expected handler not set error, got %v", err)
 		}
 
-		_, err = tr.TestStop(true, nil)
+		_, err = tr.TestStop(true, []TranscriptEntry{})
 		if err == nil || err.Error() != "Stop handler not set" {
 			t.Errorf("expected handler not set error, got %v", err)
 		}
@@ -344,7 +344,7 @@ func TestAssertionHelpers(t *testing.T) {
 		}
 		tr := NewTestRunner(runner)
 
-		err := tr.AssertStopContinues(true, nil)
+		err := tr.AssertStopContinues(true, []TranscriptEntry{})
 		if err != nil {
 			t.Errorf("AssertStopContinues() error = %v", err)
 		}
@@ -358,7 +358,7 @@ func TestAssertionHelpers(t *testing.T) {
 		}
 		tr := NewTestRunner(runner)
 
-		err := tr.AssertStopBlocks(true, nil)
+		err := tr.AssertStopBlocks(true, []TranscriptEntry{})
 		if err != nil {
 			t.Errorf("AssertStopBlocks() error = %v", err)
 		}
