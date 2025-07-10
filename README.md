@@ -15,6 +15,7 @@ A Go SDK for creating strongly typed Claude Code hooks. This SDK simplifies the 
 - [Advanced Features](#advanced-features)
   - [Raw Handler](#raw-handler)
   - [Stateful Hooks](#stateful-hooks)
+  - [StopOnce Handler](#stoponce-handler)
   - [External Service Integration](#external-service-integration)
 - [API Reference](#api-reference)
 - [Examples](#examples)
@@ -284,6 +285,38 @@ runner := &cchooks.Runner{
 }
 ```
 
+### StopOnce Handler
+
+The `StopOnce` handler allows you to handle the first stop event differently from subsequent ones. It only triggers when `stop_hook_active` is false:
+
+```go
+runner := &cchooks.Runner{
+    // StopOnce only triggers when stop_hook_active is false (first stop)
+    StopOnce: func(ctx context.Context, event *cchooks.StopEvent) (*cchooks.StopResponse, error) {
+        // This will only run on the first stop event
+        // You could use this to save state, send notifications, etc.
+        log.Printf("First stop detected! Session: %s\n", event.SessionID)
+        
+        // Block the first stop to allow cleanup or confirmation
+        return cchooks.BlockStop("Please confirm you want to stop"), nil
+    },
+    
+    // Regular Stop handler for subsequent stops (when stop_hook_active is true)
+    Stop: func(ctx context.Context, event *cchooks.StopEvent) (*cchooks.StopResponse, error) {
+        // This runs on all subsequent stop attempts
+        log.Printf("Stop attempt for session: %s\n", event.SessionID)
+        
+        // Allow subsequent stops
+        return cchooks.Continue(), nil
+    },
+}
+```
+
+**Behavior:**
+- If both `Stop` and `StopOnce` are defined, `StopOnce` takes precedence when `stop_hook_active` is false
+- If only `StopOnce` is defined, it will only handle the first stop event
+- If only `Stop` is defined, it handles all stop events regardless of `stop_hook_active`
+
 ### External Service Integration
 
 Integrate with security services or policy engines:
@@ -344,6 +377,9 @@ type Runner struct {
     PostToolUse  func(context.Context, *PostToolUseEvent) (*PostToolUseResponse, error)
     Notification func(context.Context, *NotificationEvent) (*NotificationResponse, error)
     Stop         func(context.Context, *StopEvent) (*StopResponse, error)
+    
+    // StopOnce - called for Stop events only when stop_hook_active is false
+    StopOnce     func(context.Context, *StopEvent) (*StopResponse, error)
     
     // Error handler - called on any SDK error
     Error        func(ctx context.Context, rawJSON string, err error) *RawResponse

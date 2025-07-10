@@ -68,8 +68,8 @@ func main() {
 	
 	goMod := fmt.Sprintf(`module testhook
 go 1.21
-require github.com/brads3290/claude-code-hooks-go v0.0.0
-replace github.com/brads3290/claude-code-hooks-go => %s
+require github.com/brads3290/cchooks v0.0.0
+replace github.com/brads3290/cchooks => %s
 `, cwd)
 
 	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
@@ -101,7 +101,7 @@ replace github.com/brads3290/claude-code-hooks-go => %s
 		{
 			name: "approve safe command",
 			input: map[string]interface{}{
-				"event":       "PreToolUse",
+				"hook_event_name":       "PreToolUse",
 				"session_id":  "test-123",
 				"tool_name":   "Bash",
 				"tool_input": map[string]interface{}{
@@ -117,7 +117,7 @@ replace github.com/brads3290/claude-code-hooks-go => %s
 		{
 			name: "block dangerous command",
 			input: map[string]interface{}{
-				"event":       "PreToolUse",
+				"hook_event_name":       "PreToolUse",
 				"session_id":  "test-456",
 				"tool_name":   "Bash",
 				"tool_input": map[string]interface{}{
@@ -221,7 +221,7 @@ func TestHookIO(t *testing.T) {
 	}
 
 	// Write test input
-	input := `{"event": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "echo test"}}`
+	input := `{"hook_event_name": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "echo test"}}`
 	go func() {
 		stdinW.Write([]byte(input))
 		stdinW.Close()

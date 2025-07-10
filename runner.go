@@ -21,6 +21,10 @@ type Runner struct {
 	PostToolUse  func(context.Context, *PostToolUseEvent) (*PostToolUseResponse, error)
 	Notification func(context.Context, *NotificationEvent) (*NotificationResponse, error)
 	Stop         func(context.Context, *StopEvent) (*StopResponse, error)
+	// StopOnce is called for Stop events only when stop_hook_active is false
+	// This allows hooks to handle the first stop event differently
+	// If both Stop and StopOnce are defined, StopOnce takes precedence when stop_hook_active is false
+	StopOnce     func(context.Context, *StopEvent) (*StopResponse, error)
 	// Error is called when any error occurs inside the SDK
 	// It receives the raw JSON string that was passed to the hook and the error
 	// If it returns a non-nil RawResponse, that response is used instead of the default error handling
@@ -87,9 +91,10 @@ func (r *Runner) Run(ctx context.Context) error {
 		return nil // handleError exits, so this is unreachable
 	}
 
-	event, ok := rawEvent["event"].(string)
+	// Check for hook_event_name field (the actual field name used by Claude Code)
+	event, ok := rawEvent["hook_event_name"].(string)
 	if !ok {
-		err := fmt.Errorf("missing or invalid event field")
+		err := fmt.Errorf("missing or invalid hook_event_name field")
 		r.handleError(ctx, string(rawJSON), err)
 		return nil // handleError exits, so this is unreachable
 	}
@@ -205,11 +210,7 @@ func (r *Runner) handleNotification(ctx context.Context, rawEvent map[string]int
 }
 
 func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}, rawJSON string) error {
-	if r.Stop == nil {
-		return nil
-	}
-
-	// Parse event
+	// Parse event first to check stop_hook_active
 	eventData, err := json.Marshal(rawEvent)
 	if err != nil {
 		return err
@@ -220,8 +221,24 @@ func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}
 		return fmt.Errorf("failed to parse StopEvent: %w", err)
 	}
 
-	// Call handler
-	response, err := r.Stop(ctx, &event)
+	// Determine which handler to use
+	var handler func(context.Context, *StopEvent) (*StopResponse, error)
+	
+	// If stop_hook_active is false and StopOnce is defined, use StopOnce
+	if !event.StopHookActive && r.StopOnce != nil {
+		handler = r.StopOnce
+	} else if r.Stop != nil {
+		// Otherwise use the regular Stop handler if defined
+		handler = r.Stop
+	}
+
+	// If no appropriate handler is found, return nil
+	if handler == nil {
+		return nil
+	}
+
+	// Call the selected handler
+	response, err := handler(ctx, &event)
 	if err != nil {
 		return err
 	}
@@ -289,7 +306,7 @@ func (r *Runner) handleError(ctx context.Context, rawJSON string, err error) {
 	// Parse the event type from rawJSON to check if it's a Stop event
 	var eventData map[string]interface{}
 	if json.Unmarshal([]byte(rawJSON), &eventData) == nil {
-		if event, ok := eventData["event"].(string); ok && event == "Stop" {
+		if event, ok := eventData["hook_event_name"].(string); ok && event == "Stop" {
 			exitCode = 0 // Don't block Claude from stopping
 		}
 	}
