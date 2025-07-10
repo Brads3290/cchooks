@@ -5,14 +5,19 @@ A Go SDK for creating strongly typed Claude Code hooks. This SDK simplifies the 
 ## Table of Contents
 
 - [Installation](#installation)
-- [Tutorial](#tutorial)
-  - [Your First Hook](#your-first-hook)
-  - [Understanding Events](#understanding-events)
-  - [Working with Different Tools](#working-with-different-tools)
-  - [Handling Errors](#handling-errors)
-  - [Testing Your Hooks](#testing-your-hooks)
-  - [Advanced Patterns](#advanced-patterns)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+  - [Events](#events)
+  - [Responses](#responses)
+  - [Tool Parsing](#tool-parsing)
+- [Error Handling](#error-handling)
+- [Testing](#testing)
+- [Advanced Features](#advanced-features)
+  - [Raw Handler](#raw-handler)
+  - [Stateful Hooks](#stateful-hooks)
+  - [External Service Integration](#external-service-integration)
 - [API Reference](#api-reference)
+- [Examples](#examples)
 
 ## Installation
 
@@ -20,11 +25,9 @@ A Go SDK for creating strongly typed Claude Code hooks. This SDK simplifies the 
 go get github.com/brads3290/cchooks
 ```
 
-## Tutorial
+## Quick Start
 
-### Your First Hook
-
-Let's start with the simplest possible hook - one that approves all actions:
+Create a simple hook that approves all tool usage:
 
 ```go
 package main
@@ -32,14 +35,12 @@ package main
 import (
     "context"
     "log"
-    
     cchooks "github.com/brads3290/cchooks"
 )
 
 func main() {
     runner := &cchooks.Runner{
         PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
-            // Approve every tool use
             return cchooks.Approve(), nil
         },
     }
@@ -50,450 +51,262 @@ func main() {
 }
 ```
 
-Build and test your hook:
+Build and test:
 
 ```bash
-# Build the hook
-go build -o my-first-hook main.go
-
-# Test it with sample input
-echo '{"event": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}' | ./my-first-hook
-
-# Should output nothing (empty response = approve)
+go build -o my-hook main.go
+echo '{"event": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}' | ./my-hook
 ```
 
-### Understanding Events
+## Core Concepts
 
-Claude Code hooks receive four types of events. Let's add logging to see what we're working with:
+### Events
+
+Claude Code hooks receive four event types:
+
+- **PreToolUse**: Called before tool execution, can approve/block/stop
+- **PostToolUse**: Called after tool execution with the result
+- **Notification**: Receives Claude notifications
+- **Stop**: Called when Claude is stopping
+
+Implement handlers for the events you want to process:
 
 ```go
-package main
-
-import (
-    "context"
-    "log"
-    "os"
-    
-    cchooks "github.com/brads3290/cchooks"
-)
-
-func main() {
-    // Create a logger that writes to stderr (stdout is reserved for responses)
-    logger := log.New(os.Stderr, "[hook] ", log.LstdFlags)
-    
-    runner := &cchooks.Runner{
-        PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
-            logger.Printf("PreToolUse: Tool=%s, Session=%s", event.ToolName, event.SessionID)
-            return cchooks.Approve(), nil
-        },
-        PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) (*cchooks.PostToolUseResponse, error) {
-            logger.Printf("PostToolUse: Tool=%s, Session=%s", event.ToolName, event.SessionID)
-            return cchooks.Allow(), nil  // Empty response
-        },
-        Notification: func(ctx context.Context, event *cchooks.NotificationEvent) (*cchooks.NotificationResponse, error) {
-            logger.Printf("Notification: %s", event.NotificationMessage)
-            return cchooks.OK(), nil
-        },
-        Stop: func(ctx context.Context, event *cchooks.StopEvent) (*cchooks.StopResponse, error) {
-            logger.Printf("Stop event received")
-            return cchooks.Continue(), nil
-        },
-    }
-    
-    if err := runner.Run(context.Background()); err != nil {
-        log.Fatal(err)
-    }
+runner := &cchooks.Runner{
+    PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+        log.Printf("Tool: %s, Session: %s", event.ToolName, event.SessionID)
+        return cchooks.Approve(), nil
+    },
+    PostToolUse: func(ctx context.Context, event *cchooks.PostToolUseEvent) (*cchooks.PostToolUseResponse, error) {
+        return cchooks.Allow(), nil
+    },
+    Notification: func(ctx context.Context, event *cchooks.NotificationEvent) (*cchooks.NotificationResponse, error) {
+        return cchooks.OK(), nil
+    },
+    Stop: func(ctx context.Context, event *cchooks.StopEvent) (*cchooks.StopResponse, error) {
+        return cchooks.Continue(), nil
+    },
 }
 ```
 
-### Working with Different Tools
+### Responses
 
-Now let's create a security hook that examines specific tools:
+The SDK provides helper functions for common responses:
 
 ```go
-package main
+// PreToolUse responses
+cchooks.Approve()           // Allow the tool to run
+cchooks.Block(reason)       // Block with reason
+cchooks.StopClaude(reason)  // Stop Claude entirely
 
-import (
-    "context"
-    "log"
-    "strings"
-    
-    cchooks "github.com/brads3290/cchooks"
-)
+// PostToolUse responses  
+cchooks.Allow()             // Continue normally
+cchooks.PostBlock(reason)   // Block after execution
+cchooks.StopClaudePost(reason)
 
-func main() {
-    runner := &cchooks.Runner{
-        PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
-            switch event.ToolName {
-            case "Bash":
-                return handleBash(event)
-            case "Write", "Edit":
-                return handleFileOperation(event)
-            default:
-                // Approve other tools by default
-                return cchooks.Approve(), nil
-            }
-        },
-    }
-    
-    if err := runner.Run(context.Background()); err != nil {
-        log.Fatal(err)
-    }
-}
+// Notification responses
+cchooks.OK()                // Acknowledge
+cchooks.StopFromNotification(reason)
 
-func handleBash(event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
-    // Parse the Bash input
-    bash, err := event.AsBash()
-    if err != nil {
-        return nil, err
-    }
-    
-    // Check for dangerous commands
-    dangerous := []string{"rm -rf", "dd if=", "mkfs", "> /dev/"}
-    for _, pattern := range dangerous {
-        if strings.Contains(bash.Command, pattern) {
-            return cchooks.Block("Dangerous command detected: " + pattern), nil
-        }
-    }
-    
-    return cchooks.Approve(), nil
-}
+// Stop responses
+cchooks.Continue()          // Allow stop
+cchooks.BlockStop(reason)   // Prevent stop
+```
 
-func handleFileOperation(event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
-    // Different tools have different input types
-    var filePath string
-    
+### Tool Parsing
+
+Events provide typed parsing for all Claude Code tools:
+
+```go
+func handlePreToolUse(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
     switch event.ToolName {
-    case "Write":
-        write, err := event.AsWrite()
+    case "Bash":
+        bash, err := event.AsBash()
         if err != nil {
             return nil, err
         }
-        filePath = write.FilePath
+        // bash.Command, bash.Timeout, etc.
+        
     case "Edit":
         edit, err := event.AsEdit()
         if err != nil {
             return nil, err
         }
-        filePath = edit.FilePath
-    }
-    
-    // Block writes to system files
-    if strings.HasPrefix(filePath, "/etc/") || 
-       strings.HasPrefix(filePath, "/sys/") ||
-       strings.HasPrefix(filePath, "/proc/") {
-        return cchooks.Block("Cannot modify system files"), nil
+        // edit.FilePath, edit.OldString, edit.NewString
+        
+    case "Write":
+        write, err := event.AsWrite()
+        if err != nil {
+            return nil, err
+        }
+        // write.FilePath, write.Content
     }
     
     return cchooks.Approve(), nil
 }
 ```
 
-### Handling Errors
+All 15+ Claude Code tools are supported with full type safety.
 
-Let's add proper error handling and see how the Error handler works:
+## Error Handling
+
+The SDK uses exit codes to communicate with Claude Code:
+
+- **0**: Success
+- **2**: Error sent to Claude (default for errors)
+- **Other**: Error shown to user
+
+Implement custom error handling with the Error handler:
 
 ```go
-package main
-
-import (
-    "context"
-    "fmt"
-    "log"
-    "os"
-    
-    cchooks "github.com/brads3290/cchooks"
-)
-
-func main() {
-    logger := log.New(os.Stderr, "[hook] ", log.LstdFlags)
-    
-    runner := &cchooks.Runner{
-        PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
-            // Simulate an error condition
-            if event.ToolName == "DEBUG_ERROR" {
-                return nil, fmt.Errorf("simulated error for testing")
-            }
-            
-            // Simulate a panic
-            if event.ToolName == "DEBUG_PANIC" {
-                panic("simulated panic for testing")
-            }
-            
-            return cchooks.Approve(), nil
-        },
-        Error: func(ctx context.Context, rawJSON string, err error) *cchooks.RawResponse {
-            // Log the error details
-            logger.Printf("Error occurred: %v", err)
-            logger.Printf("Raw JSON: %s", rawJSON)
-            
-            // You can return nil to use default error handling
-            // (exit code 2 for most events, 0 for Stop events)
-            // Or return a custom response:
-            if strings.Contains(err.Error(), "panic:") {
-                return &cchooks.RawResponse{
-                    ExitCode: 1,
-                    Output:   "Hook crashed! Please check the logs.",
-                }
-            }
-            
-            // Use default handling for other errors
-            return nil
-        },
-    }
-    
-    if err := runner.Run(context.Background()); err != nil {
-        log.Fatal(err)
-    }
+runner := &cchooks.Runner{
+    PreToolUse: handlePreToolUse,
+    Error: func(ctx context.Context, rawJSON string, err error) *cchooks.RawResponse {
+        log.Printf("Error: %v, JSON: %s", err, rawJSON)
+        
+        // Return nil for default handling (exit code 2, or 0 for Stop events)
+        // Or return custom response:
+        return &cchooks.RawResponse{
+            ExitCode: 1,
+            Output:   "Custom error message",
+        }
+    },
 }
 ```
 
-### Testing Your Hooks
+The Error handler receives:
+- JSON parsing errors
+- Event validation errors
+- Handler errors
+- Panics (converted to errors with "panic:" prefix)
 
-Testing is crucial for hooks. Here's how to write comprehensive tests:
+**Note**: Stop event errors use exit code 0 by default to avoid blocking Claude from stopping.
+
+## Testing
+
+The SDK includes comprehensive testing utilities:
 
 ```go
-package main
-
-import (
-    "testing"
-    
-    cchooks "github.com/brads3290/cchooks"
-    "github.com/stretchr/testify/assert"
-)
-
 func TestSecurityHook(t *testing.T) {
-    runner := createSecurityRunner()  // Your runner creation logic
-    tester := cchooks.NewTestRunner(runner)
-    
-    t.Run("blocks dangerous bash commands", func(t *testing.T) {
-        dangerousCommands := []string{
-            "rm -rf /",
-            "dd if=/dev/zero of=/dev/sda",
-            "mkfs.ext4 /dev/sda",
-        }
-        
-        for _, cmd := range dangerousCommands {
-            err := tester.AssertPreToolUseBlocks("Bash", &cchooks.BashInput{
-                Command: cmd,
-            })
-            assert.NoError(t, err, "Should block command: %s", cmd)
-        }
-    })
-    
-    t.Run("allows safe bash commands", func(t *testing.T) {
-        safeCommands := []string{
-            "ls -la",
-            "git status",
-            "npm install",
-        }
-        
-        for _, cmd := range safeCommands {
-            err := tester.AssertPreToolUseApproves("Bash", &cchooks.BashInput{
-                Command: cmd,
-            })
-            assert.NoError(t, err, "Should approve command: %s", cmd)
-        }
-    })
-    
-    t.Run("blocks system file writes", func(t *testing.T) {
-        err := tester.AssertPreToolUseBlocks("Write", &cchooks.WriteInput{
-            FilePath: "/etc/passwd",
-            Content:  "malicious content",
-        })
-        assert.NoError(t, err)
-    })
-    
-    t.Run("handles PostToolUse events", func(t *testing.T) {
-        // Test with command failure
-        response, err := tester.RunPostToolUse("Bash", 
-            &cchooks.BashInput{Command: "test-cmd"},
-            &cchooks.BashResponse{ExitCode: 1, Output: "command failed"})
-        
-        assert.NoError(t, err)
-        assert.NotNil(t, response)
-        // Add assertions based on your PostToolUse logic
-    })
-}
-
-// Test the runner directly for more control
-func TestRunnerWithRawInput(t *testing.T) {
     runner := createSecurityRunner()
     tester := cchooks.NewTestRunner(runner)
     
-    // Test with raw JSON input
+    // Test specific behaviors
+    err := tester.AssertPreToolUseBlocks("Bash", &cchooks.BashInput{
+        Command: "rm -rf /",
+    })
+    assert.NoError(t, err)
+    
+    err = tester.AssertPreToolUseApproves("Bash", &cchooks.BashInput{
+        Command: "ls -la",
+    })
+    assert.NoError(t, err)
+    
+    // Test with raw input
     output, exitCode, err := tester.RunWithInput(`{
         "event": "PreToolUse",
-        "session_id": "test-123",
+        "session_id": "test",
         "tool_name": "Bash",
-        "tool_input": {"command": "rm -rf /"}
+        "tool_input": {"command": "pwd"}
     }`)
-    
-    assert.NoError(t, err)
     assert.Equal(t, 0, exitCode)
-    assert.Contains(t, output, `"decision": "block"`)
 }
 ```
 
-### Advanced Patterns
+## Advanced Features
 
-#### Pattern 1: Stateful Hooks with Context
+### Raw Handler
 
-Sometimes you need to track state across multiple tool uses:
-
-```go
-package main
-
-import (
-    "context"
-    "sync"
-    "time"
-    
-    cchooks "github.com/brads3290/cchooks"
-)
-
-type SessionTracker struct {
-    mu       sync.Mutex
-    sessions map[string]*SessionInfo
-}
-
-type SessionInfo struct {
-    CommandCount int
-    LastCommand  time.Time
-    Blocked      bool
-}
-
-func main() {
-    tracker := &SessionTracker{
-        sessions: make(map[string]*SessionInfo),
-    }
-    
-    runner := &cchooks.Runner{
-        PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
-            tracker.mu.Lock()
-            defer tracker.mu.Unlock()
-            
-            // Get or create session info
-            session, exists := tracker.sessions[event.SessionID]
-            if !exists {
-                session = &SessionInfo{}
-                tracker.sessions[event.SessionID] = session
-            }
-            
-            // Rate limiting: block if too many commands
-            if time.Since(session.LastCommand) < time.Second && session.CommandCount > 10 {
-                session.Blocked = true
-                return cchooks.Block("Rate limit exceeded"), nil
-            }
-            
-            session.CommandCount++
-            session.LastCommand = time.Now()
-            
-            return cchooks.Approve(), nil
-        },
-    }
-    
-    if err := runner.Run(context.Background()); err != nil {
-        log.Fatal(err)
-    }
-}
-```
-
-#### Pattern 2: Raw Handler for Custom Protocols
-
-Use the Raw handler for complete control over processing:
+Process events before JSON parsing for complete control:
 
 ```go
 runner := &cchooks.Runner{
     Raw: func(ctx context.Context, rawJSON string) (*cchooks.RawResponse, error) {
-        // Example: Add custom telemetry
-        log.Printf("[TELEMETRY] Event received: %d bytes", len(rawJSON))
+        // Log all events
+        log.Printf("[RAW] %s", rawJSON)
         
-        // Example: Block based on raw patterns
-        if strings.Contains(rawJSON, "FORBIDDEN_PATTERN") {
+        // Block specific patterns
+        if strings.Contains(rawJSON, "FORBIDDEN") {
             return &cchooks.RawResponse{
                 ExitCode: 1,
                 Output:   "Forbidden pattern detected",
             }, nil
         }
         
-        // Example: Transform the input before processing
-        if strings.Contains(rawJSON, "legacy_format") {
-            // Transform to new format...
-            // Continue with normal processing
-            return nil, nil
-        }
-        
-        // Return nil to continue with normal event processing
+        // Continue normal processing
         return nil, nil
     },
+    PreToolUse: handlePreToolUse,
+}
+```
+
+### Stateful Hooks
+
+Track state across multiple tool invocations:
+
+```go
+type RateLimiter struct {
+    mu       sync.Mutex
+    counts   map[string]int
+    window   map[string]time.Time
+}
+
+func (r *RateLimiter) CheckAndIncrement(sessionID string) bool {
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    
+    now := time.Now()
+    if last, ok := r.window[sessionID]; ok && now.Sub(last) < time.Minute {
+        r.counts[sessionID]++
+        if r.counts[sessionID] > 100 {
+            return false // Rate limit exceeded
+        }
+    } else {
+        r.counts[sessionID] = 1
+        r.window[sessionID] = now
+    }
+    return true
+}
+
+// Use in your hook:
+rateLimiter := &RateLimiter{
+    counts: make(map[string]int),
+    window: make(map[string]time.Time),
+}
+
+runner := &cchooks.Runner{
     PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+        if !rateLimiter.CheckAndIncrement(event.SessionID) {
+            return cchooks.Block("Rate limit exceeded"), nil
+        }
         return cchooks.Approve(), nil
     },
 }
 ```
 
-#### Pattern 3: Integration with External Services
+### External Service Integration
+
+Integrate with security services or policy engines:
 
 ```go
-package main
-
-import (
-    "bytes"
-    "context"
-    "encoding/json"
-    "net/http"
-    "time"
-    
-    cchooks "github.com/brads3290/cchooks"
-)
-
-type SecurityService struct {
-    client  *http.Client
-    baseURL string
+type PolicyClient struct {
+    endpoint string
+    client   *http.Client
 }
 
-func main() {
-    service := &SecurityService{
-        client:  &http.Client{Timeout: 5 * time.Second},
-        baseURL: "https://security-api.example.com",
-    }
-    
-    runner := &cchooks.Runner{
-        PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
-            // Check with external service
-            allowed, reason, err := service.CheckCommand(ctx, event)
-            if err != nil {
-                // Fail open or closed based on your security posture
-                return cchooks.Approve(), nil  // Fail open
-            }
-            
-            if !allowed {
-                return cchooks.Block(reason), nil
-            }
-            
-            return cchooks.Approve(), nil
-        },
-    }
-    
-    if err := runner.Run(context.Background()); err != nil {
-        log.Fatal(err)
-    }
-}
-
-func (s *SecurityService) CheckCommand(ctx context.Context, event *cchooks.PreToolUseEvent) (bool, string, error) {
+func (p *PolicyClient) CheckPolicy(ctx context.Context, event *cchooks.PreToolUseEvent) (bool, string, error) {
     payload, _ := json.Marshal(map[string]interface{}{
         "tool":       event.ToolName,
         "session_id": event.SessionID,
         "input":      event.ToolInput,
     })
     
-    req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/check", bytes.NewReader(payload))
+    req, err := http.NewRequestWithContext(ctx, "POST", p.endpoint, bytes.NewReader(payload))
     if err != nil {
         return false, "", err
     }
     
-    resp, err := s.client.Do(req)
+    resp, err := p.client.Do(req)
     if err != nil {
         return false, "", err
     }
@@ -511,6 +324,7 @@ func (s *SecurityService) CheckCommand(ctx context.Context, event *cchooks.PreTo
     return result.Allowed, result.Reason, nil
 }
 ```
+
 
 ## API Reference
 
@@ -685,29 +499,12 @@ func (t *TestRunner) AssertPostToolUseBlocks(toolName string, toolInput, toolRes
 ### Exit Codes
 
 - **0**: Success (hook executed successfully, or Error handler returned nil for Stop events)
-- **2**: Error sent to Claude (default for Error handler returning nil on non-Stop events)
+- **2**: Error sent to Claude (default for Error handler returning nil on non-Stop events)  
 - **Other**: Error shown to user (custom exit codes via RawResponse)
 
-### Error Handler
+### Configuration
 
-The Error handler is called for:
-- JSON parsing errors
-- Event validation errors
-- Handler errors
-- Response encoding errors
-- Panics during processing (converted to errors with "panic:" prefix)
-
-### Best Practices
-
-1. **Always log to stderr**: stdout is reserved for hook responses
-2. **Handle errors gracefully**: Return errors from handlers rather than panicking
-3. **Test thoroughly**: Use the testing utilities to verify all code paths
-4. **Keep hooks focused**: Each hook should have a single, clear purpose
-5. **Fail safely**: Decide whether to fail open (approve) or closed (block) when external services are unavailable
-
-## Configuration
-
-Configure your hooks in Claude Code's settings:
+Configure hooks in Claude Code's settings:
 
 ```json
 {
@@ -737,6 +534,14 @@ Configure your hooks in Claude Code's settings:
   }
 }
 ```
+
+### Best Practices
+
+1. **Always log to stderr**: stdout is reserved for hook responses
+2. **Handle errors gracefully**: Return errors from handlers rather than panicking
+3. **Test thoroughly**: Use the testing utilities to verify all code paths
+4. **Keep hooks focused**: Each hook should have a single, clear purpose
+5. **Fail safely**: Decide whether to fail open (approve) or closed (block) when external services are unavailable
 
 ## Examples
 
