@@ -16,7 +16,6 @@ import (
 
 // TestIntegration runs an end-to-end test simulating Claude Code hook execution
 func TestIntegration(t *testing.T) {
-	t.Skip("Skipping integration test temporarily")
 	// Create a test hook binary
 	hookCode := `
 package main
@@ -75,6 +74,13 @@ replace github.com/brads3290/claude-code-hooks-go => %s
 
 	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
 		t.Fatal(err)
+	}
+
+	// Run go mod tidy first
+	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd.Dir = tmpDir
+	if output, err := tidyCmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to run go mod tidy: %v\nOutput: %s", err, output)
 	}
 
 	// Build the hook
@@ -185,7 +191,6 @@ func TestExampleHooks(t *testing.T) {
 
 // TestHookIO tests the I/O behavior of hooks
 func TestHookIO(t *testing.T) {
-	t.Skip("Skipping hook IO test temporarily")
 	// Create pipes for testing
 	stdinR, stdinW, _ := os.Pipe()
 	stdoutR, stdoutW, _ := os.Pipe()
@@ -228,16 +233,16 @@ func TestHookIO(t *testing.T) {
 		done <- runner.Run(context.Background())
 	}()
 
-	// Close write ends
+	// Wait for completion
+	err := <-done
+
+	// Close write ends after runner completes
 	stdoutW.Close()
 	stderrW.Close()
 
 	// Read output
 	stdout, _ := io.ReadAll(stdoutR)
 	stderr, _ := io.ReadAll(stderrR)
-
-	// Wait for completion
-	err := <-done
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
