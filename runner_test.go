@@ -89,13 +89,13 @@ func TestRunner_Run(t *testing.T) {
 			name:        "unknown event type",
 			input:       `{"event": "Unknown", "session_id": "test"}`,
 			runner:      &Runner{},
-			wantErrCode: 2,
+			wantErrCode: 0,
 		},
 		{
 			name:        "missing event field",
 			input:       `{"session_id": "test"}`,
 			runner:      &Runner{},
-			wantErrCode: 2,
+			wantErrCode: 0,
 		},
 		{
 			name:  "handler returns error",
@@ -105,7 +105,7 @@ func TestRunner_Run(t *testing.T) {
 					return nil, errors.New("handler error")
 				},
 			},
-			wantErrCode: 2,
+			wantErrCode: 0,
 		},
 	}
 
@@ -376,8 +376,8 @@ func TestHandlerErrors(t *testing.T) {
 	wErr.Close()
 	stderrOutput, _ := io.ReadAll(rErr)
 
-	if exitCode != 2 {
-		t.Errorf("expected exit code 2, got %d, stderr: %s", exitCode, stderrOutput)
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d, stderr: %s", exitCode, stderrOutput)
 	}
 }
 
@@ -437,7 +437,7 @@ func TestRawHandler(t *testing.T) {
 					return nil, errors.New("raw handler error")
 				},
 			},
-			wantErrCode: 2,
+			wantErrCode: 0,
 		},
 		{
 			name:  "Raw handler with Error handler",
@@ -456,7 +456,7 @@ func TestRawHandler(t *testing.T) {
 					return nil
 				},
 			},
-			wantErrCode: 2,
+			wantErrCode: 0,
 		},
 		{
 			name:  "Raw handler with malformed JSON",
@@ -748,8 +748,8 @@ func TestErrorHandler(t *testing.T) {
 					t.Errorf("stdout = %q, want %q", outStr, tt.wantErrOutput)
 				}
 			} else {
-				if exitCode != 2 {
-					t.Errorf("exit code = %d, want 2", exitCode)
+				if exitCode != 0 {
+					t.Errorf("exit code = %d, want 0", exitCode)
 				}
 				if !strings.Contains(errStr, tt.wantErrString) {
 					t.Errorf("stderr = %q, want to contain %q", errStr, tt.wantErrString)

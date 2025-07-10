@@ -266,7 +266,7 @@ func isEmpty(response interface{}) bool {
 }
 
 // handleError calls the Error handler if available and handles the response
-// If no Error handler or it returns nil, uses default error handling (exit code 2)
+// If no Error handler or it returns nil, uses default error handling (exit code 0)
 func (r *Runner) handleError(ctx context.Context, rawJSON string, err error) {
 	if r.Error != nil {
 		if response := r.Error(ctx, rawJSON, err); response != nil {
@@ -281,5 +281,5 @@ func (r *Runner) handleError(ctx context.Context, rawJSON string, err error) {
 	
 	// Default error handling
 	fmt.Fprintf(os.Stderr, "%v\n", err)
-	osExit(2)
+	osExit(0)
 }
