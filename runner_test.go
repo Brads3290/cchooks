@@ -89,13 +89,13 @@ func TestRunner_Run(t *testing.T) {
 			name:        "unknown event type",
 			input:       `{"event": "Unknown", "session_id": "test"}`,
 			runner:      &Runner{},
-			wantErrCode: 0,
+			wantErrCode: 2,
 		},
 		{
 			name:        "missing event field",
 			input:       `{"session_id": "test"}`,
 			runner:      &Runner{},
-			wantErrCode: 0,
+			wantErrCode: 2,
 		},
 		{
 			name:  "handler returns error",
@@ -105,7 +105,7 @@ func TestRunner_Run(t *testing.T) {
 					return nil, errors.New("handler error")
 				},
 			},
-			wantErrCode: 0,
+			wantErrCode: 2,
 		},
 	}
 
@@ -376,8 +376,8 @@ func TestHandlerErrors(t *testing.T) {
 	wErr.Close()
 	stderrOutput, _ := io.ReadAll(rErr)
 
-	if exitCode != 0 {
-		t.Errorf("expected exit code 0, got %d, stderr: %s", exitCode, stderrOutput)
+	if exitCode != 2 {
+		t.Errorf("expected exit code 2, got %d, stderr: %s", exitCode, stderrOutput)
 	}
 }
 
@@ -437,7 +437,7 @@ func TestRawHandler(t *testing.T) {
 					return nil, errors.New("raw handler error")
 				},
 			},
-			wantErrCode: 0,
+			wantErrCode: 2,
 		},
 		{
 			name:  "Raw handler with Error handler",
@@ -456,7 +456,7 @@ func TestRawHandler(t *testing.T) {
 					return nil
 				},
 			},
-			wantErrCode: 0,
+			wantErrCode: 2,
 		},
 		{
 			name:  "Raw handler with malformed JSON",
@@ -680,6 +680,21 @@ func TestErrorHandler(t *testing.T) {
 			wantErrCode:     42,
 			wantErrOutput:   "custom error response",
 		},
+		{
+			name:  "Stop event error returns exit code 0",
+			input: `{"event": "Stop", "session_id": "test", "stop_hook_active": true, "transcript": []}`,
+			runner: &Runner{
+				Stop: func(ctx context.Context, event *StopEvent) (*StopResponse, error) {
+					return nil, errors.New("stop handler error")
+				},
+				Error: func(ctx context.Context, rawJSON string, err error) *RawResponse {
+					// Return nil to use default handling
+					return nil
+				},
+			},
+			wantErrString: "stop handler error",
+			// Stop events should exit with 0 even on error to avoid blocking Claude
+		},
 	}
 
 	for _, tt := range tests {
@@ -748,8 +763,14 @@ func TestErrorHandler(t *testing.T) {
 					t.Errorf("stdout = %q, want %q", outStr, tt.wantErrOutput)
 				}
 			} else {
-				if exitCode != 0 {
-					t.Errorf("exit code = %d, want 0", exitCode)
+				// Special handling for Stop events - they should exit with 0
+				expectedExitCode := 2
+				if strings.Contains(tt.input, `"event": "Stop"`) {
+					expectedExitCode = 0
+				}
+				
+				if exitCode != expectedExitCode {
+					t.Errorf("exit code = %d, want %d", exitCode, expectedExitCode)
 				}
 				if !strings.Contains(errStr, tt.wantErrString) {
 					t.Errorf("stderr = %q, want to contain %q", errStr, tt.wantErrString)

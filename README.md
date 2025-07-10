@@ -227,7 +227,8 @@ func main() {
             logger.Printf("Error occurred: %v", err)
             logger.Printf("Raw JSON: %s", rawJSON)
             
-            // You can return nil to use default error handling (exit code 0)
+            // You can return nil to use default error handling
+            // (exit code 2 for most events, 0 for Stop events)
             // Or return a custom response:
             if strings.Contains(err.Error(), "panic:") {
                 return &cchooks.RawResponse{
@@ -683,8 +684,8 @@ func (t *TestRunner) AssertPostToolUseBlocks(toolName string, toolInput, toolRes
 
 ### Exit Codes
 
-- **0**: Success (hook executed successfully, or Error handler returned nil)
-- **2**: Error sent to Claude (only when using custom RawResponse with ExitCode 2)
+- **0**: Success (hook executed successfully, or Error handler returned nil for Stop events)
+- **2**: Error sent to Claude (default for Error handler returning nil on non-Stop events)
 - **Other**: Error shown to user (custom exit codes via RawResponse)
 
 ### Error Handler

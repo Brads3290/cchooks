@@ -266,7 +266,8 @@ func isEmpty(response interface{}) bool {
 }
 
 // handleError calls the Error handler if available and handles the response
-// If no Error handler or it returns nil, uses default error handling (exit code 0)
+// If no Error handler or it returns nil, uses default error handling
+// Default exit code is 2, except for Stop events which use 0 to avoid blocking Claude from stopping
 func (r *Runner) handleError(ctx context.Context, rawJSON string, err error) {
 	if r.Error != nil {
 		if response := r.Error(ctx, rawJSON, err); response != nil {
@@ -281,5 +282,17 @@ func (r *Runner) handleError(ctx context.Context, rawJSON string, err error) {
 	
 	// Default error handling
 	fmt.Fprintf(os.Stderr, "%v\n", err)
-	osExit(0)
+	
+	// Determine exit code based on event type
+	exitCode := 2 // Default for most errors
+	
+	// Parse the event type from rawJSON to check if it's a Stop event
+	var eventData map[string]interface{}
+	if json.Unmarshal([]byte(rawJSON), &eventData) == nil {
+		if event, ok := eventData["event"].(string); ok && event == "Stop" {
+			exitCode = 0 // Don't block Claude from stopping
+		}
+	}
+	
+	osExit(exitCode)
 }

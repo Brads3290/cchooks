@@ -105,8 +105,8 @@ The Raw handler:
 # Error Handling
 
 Hooks communicate with Claude Code through exit codes:
-  - Exit code 0: Success (or when Error handler returns nil)
-  - Exit code 2: Error sent to Claude (custom RawResponse only)
+  - Exit code 0: Success (or when Error handler returns nil for Stop events)
+  - Exit code 2: Error sent to Claude (default for non-Stop events when Error handler returns nil)
   - Other codes: Error shown to user
 
 You can optionally handle SDK errors by providing an Error handler:
@@ -120,7 +120,8 @@ You can optionally handle SDK errors by providing an Error handler:
 	        // Log errors, send telemetry, etc.
 	        log.Printf("Hook error: %v, JSON: %s", err, rawJSON)
 	        
-	        // Return nil to use default error handling (exit code 0)
+	        // Return nil to use default error handling
+	        // (exit code 2 for most events, 0 for Stop events)
 	        return nil
 	        
 	        // Or return a custom response
@@ -139,6 +140,6 @@ The Error handler is called whenever an error occurs inside the SDK, including:
   - Panics that occur during processing
 
 If the Error handler returns a non-nil RawResponse, that response is used instead of the default error handling.
-If it returns nil, the SDK will exit with code 0 and output the error to stderr.
+If it returns nil, the SDK will output the error to stderr and exit with code 2 (or code 0 for Stop events to avoid blocking Claude from stopping).
 */
 package cchooks

@@ -8,9 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Error handler now returns exit code 0 when returning nil (previously exit code 2)
-  - This allows hooks to handle errors gracefully without signaling failure to Claude Code
-  - Exit code 2 is now only used when explicitly set via RawResponse
+- Error handler now returns exit code 0 for Stop events when returning nil
+  - Stop event errors no longer block Claude from stopping (exit code 0)
+  - Other event types still use exit code 2 when Error handler returns nil
+  - This prevents error loops where Claude cannot stop due to hook errors
 
 ## [v0.4.0] - 2025-01-10
 
