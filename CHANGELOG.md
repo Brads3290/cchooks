@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.2.0] - 2025-01-10
+
+### Added
+- Raw handler for processing raw JSON before event dispatch
+  - Executes before any JSON parsing or event handling
+  - Can return custom exit codes and output
+  - Useful for custom protocols, logging, and preprocessing
+  - Returns nil to continue with normal event processing
+
 ## [v0.1.0] - 2025-01-10
 
 ### Added
