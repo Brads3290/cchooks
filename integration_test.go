@@ -28,14 +28,14 @@ import (
 
 func main() {
 	runner := &cchooks.Runner{
-		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) cchooks.PreToolUseResponseInterface {
 			if event.ToolName == "Bash" {
 				bash, _ := event.AsBash()
 				if strings.Contains(bash.Command, "rm -rf") {
-					return cchooks.Block("dangerous command"), nil
+					return cchooks.Block("dangerous command")
 				}
 			}
-			return cchooks.Approve(), nil
+			return cchooks.Approve()
 		},
 	}
 	
@@ -213,8 +213,8 @@ func TestHookIO(t *testing.T) {
 	// Create runner with mock exit function
 	exitCode := -1
 	runner := &cchooks.Runner{
-		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
-			return cchooks.Approve(), nil
+		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) cchooks.PreToolUseResponseInterface {
+			return cchooks.Approve()
 		},
 	}
 

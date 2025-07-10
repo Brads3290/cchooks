@@ -9,7 +9,7 @@ import (
 func TestTestRunner(t *testing.T) {
 	t.Run("TestPreToolUse", func(t *testing.T) {
 		runner := &Runner{
-			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 				if event.ToolName == "Bash" {
 					bash, _ := event.AsBash()
 					if bash.Command == "rm -rf /" {
@@ -27,8 +27,12 @@ func TestTestRunner(t *testing.T) {
 		if errResp, ok := resp.(*ErrorResponse); ok {
 			t.Fatalf("TestPreToolUse error = %v", errResp.Error)
 		}
-		if resp.Decision != PreToolUseApprove {
-			t.Errorf("Decision = %q, want %q", resp.Decision, PreToolUseApprove)
+		if preResp, ok := resp.(*PreToolUseResponse); ok {
+			if preResp.Decision != PreToolUseApprove {
+				t.Errorf("Decision = %q, want %q", preResp.Decision, PreToolUseApprove)
+			}
+		} else {
+			t.Error("expected *PreToolUseResponse")
 		}
 
 		// Test block
@@ -36,17 +40,21 @@ func TestTestRunner(t *testing.T) {
 		if errResp, ok := resp.(*ErrorResponse); ok {
 			t.Fatalf("TestPreToolUse error = %v", errResp.Error)
 		}
-		if resp.Decision != PreToolUseBlock {
-			t.Errorf("Decision = %q, want %q", resp.Decision, PreToolUseBlock)
-		}
-		if resp.Reason != "dangerous" {
-			t.Errorf("Reason = %q, want %q", resp.Reason, "dangerous")
+		if preResp, ok := resp.(*PreToolUseResponse); ok {
+			if preResp.Decision != PreToolUseBlock {
+				t.Errorf("Decision = %q, want %q", preResp.Decision, PreToolUseBlock)
+			}
+			if preResp.Reason != "dangerous" {
+				t.Errorf("Reason = %q, want %q", preResp.Reason, "dangerous")
+			}
+		} else {
+			t.Error("expected *PreToolUseResponse")
 		}
 	})
 
 	t.Run("TestPostToolUse", func(t *testing.T) {
 		runner := &Runner{
-			PostToolUse: func(ctx context.Context, event *PostToolUseEvent) *PostToolUseResponse {
+			PostToolUse: func(ctx context.Context, event *PostToolUseEvent) PostToolUseResponseInterface {
 				bash, _ := event.ResponseAsBash()
 				if bash.ExitCode != 0 {
 					return PostBlock("command failed")
@@ -62,8 +70,12 @@ func TestTestRunner(t *testing.T) {
 		if errResp, ok := resp.(*ErrorResponse); ok {
 			t.Fatalf("TestPostToolUse error = %v", errResp.Error)
 		}
-		if resp.Decision != "" {
-			t.Errorf("Decision = %q, want empty", resp.Decision)
+		if postResp, ok := resp.(*PostToolUseResponse); ok {
+			if postResp.Decision != "" {
+				t.Errorf("Decision = %q, want empty", postResp.Decision)
+			}
+		} else {
+			t.Error("expected *PostToolUseResponse")
 		}
 
 		// Test block
@@ -71,14 +83,18 @@ func TestTestRunner(t *testing.T) {
 		if errResp, ok := resp.(*ErrorResponse); ok {
 			t.Fatalf("TestPostToolUse error = %v", errResp.Error)
 		}
-		if resp.Decision != PostToolUseBlock {
-			t.Errorf("Decision = %q, want %q", resp.Decision, PostToolUseBlock)
+		if postResp, ok := resp.(*PostToolUseResponse); ok {
+			if postResp.Decision != PostToolUseBlock {
+				t.Errorf("Decision = %q, want %q", postResp.Decision, PostToolUseBlock)
+			}
+		} else {
+			t.Error("expected *PostToolUseResponse")
 		}
 	})
 
 	t.Run("TestNotification", func(t *testing.T) {
 		runner := &Runner{
-			Notification: func(ctx context.Context, event *NotificationEvent) *NotificationResponse {
+			Notification: func(ctx context.Context, event *NotificationEvent) NotificationResponseInterface {
 				if event.Message == "error" {
 					return StopFromNotification("error occurred")
 				}
@@ -93,8 +109,12 @@ func TestTestRunner(t *testing.T) {
 		if errResp, ok := resp.(*ErrorResponse); ok {
 			t.Fatalf("TestNotification error = %v", errResp.Error)
 		}
-		if resp.Continue != nil || resp.StopReason != "" {
-			t.Error("expected empty response")
+		if notifResp, ok := resp.(*NotificationResponse); ok {
+			if notifResp.Continue != nil || notifResp.StopReason != "" {
+				t.Error("expected empty response")
+			}
+		} else {
+			t.Error("expected *NotificationResponse")
 		}
 
 		// Test stop
@@ -102,17 +122,21 @@ func TestTestRunner(t *testing.T) {
 		if errResp, ok := resp.(*ErrorResponse); ok {
 			t.Fatalf("TestNotification error = %v", errResp.Error)
 		}
-		if resp.Continue == nil || *resp.Continue != false {
-			t.Error("expected continue=false")
-		}
-		if resp.StopReason != "error occurred" {
-			t.Errorf("StopReason = %q, want %q", resp.StopReason, "error occurred")
+		if notifResp, ok := resp.(*NotificationResponse); ok {
+			if notifResp.Continue == nil || *notifResp.Continue != false {
+				t.Error("expected continue=false")
+			}
+			if notifResp.StopReason != "error occurred" {
+				t.Errorf("StopReason = %q, want %q", notifResp.StopReason, "error occurred")
+			}
+		} else {
+			t.Error("expected *NotificationResponse")
 		}
 	})
 
 	t.Run("TestStop", func(t *testing.T) {
 		runner := &Runner{
-			Stop: func(ctx context.Context, event *StopEvent) *StopResponse {
+			Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 				if !event.StopHookActive {
 					return BlockStop("stop not allowed")
 				}
@@ -127,8 +151,12 @@ func TestTestRunner(t *testing.T) {
 		if errResp, ok := resp.(*ErrorResponse); ok {
 			t.Fatalf("TestStop error = %v", errResp.Error)
 		}
-		if resp.Decision != "" {
-			t.Errorf("Decision = %q, want empty", resp.Decision)
+		if stopResp, ok := resp.(*StopResponse); ok {
+			if stopResp.Decision != "" {
+				t.Errorf("Decision = %q, want empty", stopResp.Decision)
+			}
+		} else {
+			t.Error("expected *StopResponse")
 		}
 
 		// Test block
@@ -136,8 +164,12 @@ func TestTestRunner(t *testing.T) {
 		if errResp, ok := resp.(*ErrorResponse); ok {
 			t.Fatalf("TestStop error = %v", errResp.Error)
 		}
-		if resp.Decision != StopBlock {
-			t.Errorf("Decision = %q, want %q", resp.Decision, StopBlock)
+		if stopResp, ok := resp.(*StopResponse); ok {
+			if stopResp.Decision != StopBlock {
+				t.Errorf("Decision = %q, want %q", stopResp.Decision, StopBlock)
+			}
+		} else {
+			t.Error("expected *StopResponse")
 		}
 	})
 
@@ -150,19 +182,19 @@ func TestTestRunner(t *testing.T) {
 			t.Errorf("expected handler not set error, got %v", resp)
 		}
 
-		resp = tr.TestPostToolUse("Bash", &BashInput{}, &BashOutput{})
-		if errResp, ok := resp.(*ErrorResponse); !ok || errResp.Message != "PostToolUse handler not set" {
-			t.Errorf("expected handler not set error, got %v", resp)
+		resp2 := tr.TestPostToolUse("Bash", &BashInput{}, &BashOutput{})
+		if errResp, ok := resp2.(*ErrorResponse); !ok || errResp.Message != "PostToolUse handler not set" {
+			t.Errorf("expected handler not set error, got %v", resp2)
 		}
 
-		resp = tr.TestNotification("test")
-		if errResp, ok := resp.(*ErrorResponse); !ok || errResp.Message != "Notification handler not set" {
-			t.Errorf("expected handler not set error, got %v", resp)
+		resp3 := tr.TestNotification("test")
+		if errResp, ok := resp3.(*ErrorResponse); !ok || errResp.Message != "Notification handler not set" {
+			t.Errorf("expected handler not set error, got %v", resp3)
 		}
 
-		resp = tr.TestStop(true, []TranscriptEntry{})
-		if errResp, ok := resp.(*ErrorResponse); !ok || errResp.Message != "Stop handler not set" {
-			t.Errorf("expected handler not set error, got %v", resp)
+		resp4 := tr.TestStop(true, []TranscriptEntry{})
+		if errResp, ok := resp4.(*ErrorResponse); !ok || errResp.Message != "Stop handler not set" {
+			t.Errorf("expected handler not set error, got %v", resp4)
 		}
 	})
 }
@@ -170,7 +202,7 @@ func TestTestRunner(t *testing.T) {
 func TestAssertionHelpers(t *testing.T) {
 	t.Run("AssertPreToolUseApproves", func(t *testing.T) {
 		runner := &Runner{
-			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 				return Approve()
 			},
 		}
@@ -182,7 +214,7 @@ func TestAssertionHelpers(t *testing.T) {
 		}
 
 		// Test failure case
-		runner.PreToolUse = func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+		runner.PreToolUse = func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 			return Block("nope")
 		}
 		err = tr.AssertPreToolUseApproves("Bash", &BashInput{Command: "ls"})
@@ -193,7 +225,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("AssertPreToolUseBlocks", func(t *testing.T) {
 		runner := &Runner{
-			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 				return Block("blocked")
 			},
 		}
@@ -205,7 +237,7 @@ func TestAssertionHelpers(t *testing.T) {
 		}
 
 		// Test failure case
-		runner.PreToolUse = func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+		runner.PreToolUse = func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 			return Approve()
 		}
 		err = tr.AssertPreToolUseBlocks("Bash", &BashInput{Command: "ls"})
@@ -216,7 +248,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("AssertPreToolUseBlocksWithReason", func(t *testing.T) {
 		runner := &Runner{
-			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 				return Block("specific reason")
 			},
 		}
@@ -236,7 +268,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("AssertPreToolUseStopsClaude", func(t *testing.T) {
 		runner := &Runner{
-			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 				return StopClaude("stop now")
 			},
 		}
@@ -248,7 +280,7 @@ func TestAssertionHelpers(t *testing.T) {
 		}
 
 		// Test failure case
-		runner.PreToolUse = func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+		runner.PreToolUse = func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 			return Approve()
 		}
 		err = tr.AssertPreToolUseStopsClaude("Bash", &BashInput{Command: "ls"})
@@ -259,7 +291,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("AssertPostToolUseAllows", func(t *testing.T) {
 		runner := &Runner{
-			PostToolUse: func(ctx context.Context, event *PostToolUseEvent) *PostToolUseResponse {
+			PostToolUse: func(ctx context.Context, event *PostToolUseEvent) PostToolUseResponseInterface {
 				return Allow()
 			},
 		}
@@ -271,7 +303,7 @@ func TestAssertionHelpers(t *testing.T) {
 		}
 
 		// Test failure case
-		runner.PostToolUse = func(ctx context.Context, event *PostToolUseEvent) *PostToolUseResponse {
+		runner.PostToolUse = func(ctx context.Context, event *PostToolUseEvent) PostToolUseResponseInterface {
 			return PostBlock("nope")
 		}
 		err = tr.AssertPostToolUseAllows("Bash", &BashInput{Command: "ls"}, &BashOutput{ExitCode: 0})
@@ -282,7 +314,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("AssertPostToolUseBlocks", func(t *testing.T) {
 		runner := &Runner{
-			PostToolUse: func(ctx context.Context, event *PostToolUseEvent) *PostToolUseResponse {
+			PostToolUse: func(ctx context.Context, event *PostToolUseEvent) PostToolUseResponseInterface {
 				return PostBlock("blocked")
 			},
 		}
@@ -296,7 +328,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("AssertPostToolUseBlocksWithReason", func(t *testing.T) {
 		runner := &Runner{
-			PostToolUse: func(ctx context.Context, event *PostToolUseEvent) *PostToolUseResponse {
+			PostToolUse: func(ctx context.Context, event *PostToolUseEvent) PostToolUseResponseInterface {
 				return PostBlock("failed")
 			},
 		}
@@ -315,7 +347,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("AssertNotificationOK", func(t *testing.T) {
 		runner := &Runner{
-			Notification: func(ctx context.Context, event *NotificationEvent) *NotificationResponse {
+			Notification: func(ctx context.Context, event *NotificationEvent) NotificationResponseInterface {
 				return OK()
 			},
 		}
@@ -327,7 +359,7 @@ func TestAssertionHelpers(t *testing.T) {
 		}
 
 		// Test failure case
-		runner.Notification = func(ctx context.Context, event *NotificationEvent) *NotificationResponse {
+		runner.Notification = func(ctx context.Context, event *NotificationEvent) NotificationResponseInterface {
 			return StopFromNotification("stop")
 		}
 		err = tr.AssertNotificationOK("test")
@@ -338,7 +370,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("AssertStopContinues", func(t *testing.T) {
 		runner := &Runner{
-			Stop: func(ctx context.Context, event *StopEvent) *StopResponse {
+			Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 				return Continue()
 			},
 		}
@@ -352,7 +384,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("AssertStopBlocks", func(t *testing.T) {
 		runner := &Runner{
-			Stop: func(ctx context.Context, event *StopEvent) *StopResponse {
+			Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 				return BlockStop("no stopping")
 			},
 		}
@@ -366,7 +398,7 @@ func TestAssertionHelpers(t *testing.T) {
 
 	t.Run("handler errors", func(t *testing.T) {
 		runner := &Runner{
-			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+			PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 				return Error(errors.New("handler failed"))
 			},
 		}

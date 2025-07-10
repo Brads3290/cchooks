@@ -111,7 +111,7 @@ func TestSecurityHook(t *testing.T) {
 func createRunner() *cchooks.Runner {
 	// Copy the actual logic from main.go
 	return &cchooks.Runner{
-		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) *cchooks.PreToolUseResponse {
+		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) cchooks.PreToolUseResponseInterface {
 			switch event.ToolName {
 			case "Bash":
 				bash, err := event.AsBash()
@@ -123,11 +123,11 @@ func createRunner() *cchooks.Runner {
 				dangerous := []string{"rm -rf", "sudo rm", "dd if=", ":(){ :|: & };:"}
 				for _, pattern := range dangerous {
 					if strings.Contains(bash.Command, pattern) {
-						return cchooks.Block(fmt.Sprintf("Dangerous command pattern detected: %s", pattern)), nil
+						return cchooks.Block(fmt.Sprintf("Dangerous command detected: %s", pattern))
 					}
 				}
 
-				return cchooks.Approve(), nil
+				return cchooks.Approve()
 
 			case "Edit", "Write":
 				// Check file paths
@@ -148,21 +148,21 @@ func createRunner() *cchooks.Runner {
 
 				// Block editing production files
 				if strings.Contains(filePath, "/production/") {
-					return cchooks.Block("Cannot edit production files"), nil
+					return cchooks.Block("Editing production files is not allowed")
 				}
 
 				// Block editing system files
 				systemPaths := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/boot/"}
 				for _, systemPath := range systemPaths {
 					if strings.HasPrefix(filePath, systemPath) {
-						return cchooks.Block(fmt.Sprintf("Cannot edit system files in %s", systemPath)), nil
+						return cchooks.Block(fmt.Sprintf("Editing system files in %s is not allowed", systemPath))
 					}
 				}
 
-				return cchooks.Approve(), nil
+				return cchooks.Approve()
 
 			default:
-				return cchooks.Approve(), nil
+				return cchooks.Approve()
 			}
 		},
 	}

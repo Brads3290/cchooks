@@ -23,7 +23,7 @@ func TestRunner_Run(t *testing.T) {
 			name:  "PreToolUse approve",
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`,
 			runner: &Runner{
-				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 					return Approve()
 				},
 			},
@@ -36,7 +36,7 @@ func TestRunner_Run(t *testing.T) {
 			name:  "PreToolUse block",
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "rm -rf /"}}`,
 			runner: &Runner{
-				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 					return Block("dangerous command")
 				},
 			},
@@ -50,7 +50,7 @@ func TestRunner_Run(t *testing.T) {
 			name:  "PreToolUse empty response",
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`,
 			runner: &Runner{
-				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 					return &PreToolUseResponse{}
 				},
 			},
@@ -60,7 +60,7 @@ func TestRunner_Run(t *testing.T) {
 			name:  "PostToolUse allow",
 			input: `{"hook_event_name": "PostToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}, "tool_response": {"output": "file1\nfile2"}}`,
 			runner: &Runner{
-				PostToolUse: func(ctx context.Context, event *PostToolUseEvent) *PostToolUseResponse {
+				PostToolUse: func(ctx context.Context, event *PostToolUseEvent) PostToolUseResponseInterface {
 					return Allow()
 				},
 			},
@@ -70,7 +70,7 @@ func TestRunner_Run(t *testing.T) {
 			name:  "Notification OK",
 			input: `{"hook_event_name": "Notification", "session_id": "test", "notification_message": "Task completed"}`,
 			runner: &Runner{
-				Notification: func(ctx context.Context, event *NotificationEvent) *NotificationResponse {
+				Notification: func(ctx context.Context, event *NotificationEvent) NotificationResponseInterface {
 					return OK()
 				},
 			},
@@ -80,7 +80,7 @@ func TestRunner_Run(t *testing.T) {
 			name:  "Stop continue",
 			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript_path": ""}`,
 			runner: &Runner{
-				Stop: func(ctx context.Context, event *StopEvent) *StopResponse {
+				Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 					return Continue()
 				},
 			},
@@ -90,7 +90,7 @@ func TestRunner_Run(t *testing.T) {
 			name:  "StopOnce handler when stop_hook_active is false",
 			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": false, "transcript_path": ""}`,
 			runner: &Runner{
-				StopOnce: func(ctx context.Context, event *StopEvent) *StopResponse {
+				StopOnce: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 					return BlockStop("stopping once")
 				},
 			},
@@ -104,11 +104,11 @@ func TestRunner_Run(t *testing.T) {
 			name:  "StopOnce not called when stop_hook_active is true",
 			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript_path": ""}`,
 			runner: &Runner{
-				StopOnce: func(ctx context.Context, event *StopEvent) *StopResponse {
+				StopOnce: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 					t.Error("StopOnce should not be called when stop_hook_active is true")
 					return nil
 				},
-				Stop: func(ctx context.Context, event *StopEvent) *StopResponse {
+				Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 					return Continue()
 				},
 			},
@@ -118,10 +118,10 @@ func TestRunner_Run(t *testing.T) {
 			name:  "StopOnce takes precedence over Stop when stop_hook_active is false",
 			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": false, "transcript_path": ""}`,
 			runner: &Runner{
-				StopOnce: func(ctx context.Context, event *StopEvent) *StopResponse {
+				StopOnce: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 					return BlockStop("from StopOnce")
 				},
-				Stop: func(ctx context.Context, event *StopEvent) *StopResponse {
+				Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 					t.Error("Stop should not be called when StopOnce is defined and stop_hook_active is false")
 					return nil
 				},
@@ -136,12 +136,12 @@ func TestRunner_Run(t *testing.T) {
 			name:  "Stop handler called when StopOnce not defined and stop_hook_active is false",
 			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": false, "transcript_path": ""}`,
 			runner: &Runner{
-				Stop: func(ctx context.Context, event *StopEvent) *StopResponse {
+				Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 					if !event.StopHookActive {
 						// Verify stop_hook_active is false
 						return BlockStop("handled by Stop")
 					}
-					return Continue(), nil
+					return Continue()
 				},
 			},
 			wantOutput: `{
@@ -166,7 +166,7 @@ func TestRunner_Run(t *testing.T) {
 			name:  "handler returns error",
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`,
 			runner: &Runner{
-				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 					return Error(errors.New("handler error"))
 				},
 			},
@@ -393,7 +393,7 @@ func TestOutputResponse(t *testing.T) {
 
 func TestHandlerErrors(t *testing.T) {
 	runner := &Runner{
-		PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+		PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 			return Error(errors.New("test error"))
 		},
 	}
@@ -477,7 +477,7 @@ func TestRawHandler(t *testing.T) {
 					// Return nil to continue normal processing
 					return nil
 				},
-				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 					return Approve()
 				},
 			},
@@ -492,7 +492,7 @@ func TestRawHandler(t *testing.T) {
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test"}`,
 			runner: &Runner{
 				Raw: func(ctx context.Context, rawJSON string) *RawResponse {
-					return Error(errors.New("raw handler error"))
+					panic(errors.New("raw handler error"))
 				},
 			},
 			wantErrCode: 2,
@@ -502,20 +502,20 @@ func TestRawHandler(t *testing.T) {
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test"}`,
 			runner: &Runner{
 				Raw: func(ctx context.Context, rawJSON string) *RawResponse {
-					return Error(errors.New("raw handler error"))
+					panic(errors.New("raw handler error"))
 				},
 				Error: func(ctx context.Context, rawJSON string, err error) *RawResponse {
 					if rawJSON != `{"hook_event_name": "PreToolUse", "session_id": "test"}` {
 						t.Errorf("Error handler got rawJSON = %q", rawJSON)
 					}
-					if err.Error() != "raw handler error" {
+					if err.Error() != "panic: raw handler error" {
 						t.Errorf("Error handler got unexpected error: %v", err)
 					}
 					return nil
 				},
 			},
-			wantOutput:  "handled malformed",
-			wantErrCode: 7,
+			wantOutput:  "",
+			wantErrCode: 2,
 		},
 	}
 
@@ -628,7 +628,7 @@ func TestErrorHandler(t *testing.T) {
 			name:  "handler error",
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`,
 			runner: &Runner{
-				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 					return Error(errors.New("handler error"))
 				},
 				Error: func(ctx context.Context, rawJSON string, err error) *RawResponse {
@@ -673,7 +673,7 @@ func TestErrorHandler(t *testing.T) {
 			name:  "panic in handler with error handler",
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`,
 			runner: &Runner{
-				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 					panic("handler panic")
 				},
 				Error: func(ctx context.Context, rawJSON string, err error) *RawResponse {
@@ -689,7 +689,7 @@ func TestErrorHandler(t *testing.T) {
 			name:  "panic returns error object",
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`,
 			runner: &Runner{
-				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 					panic(errors.New("custom error"))
 				},
 				Error: func(ctx context.Context, rawJSON string, err error) *RawResponse {
@@ -705,7 +705,7 @@ func TestErrorHandler(t *testing.T) {
 			name:  "error handler returns custom response",
 			input: `{"hook_event_name": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`,
 			runner: &Runner{
-				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) *PreToolUseResponse {
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 					return Error(errors.New("handler error"))
 				},
 				Error: func(ctx context.Context, rawJSON string, err error) *RawResponse {
@@ -723,7 +723,7 @@ func TestErrorHandler(t *testing.T) {
 			name:  "Stop event error returns exit code 0",
 			input: `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript_path": ""}`,
 			runner: &Runner{
-				Stop: func(ctx context.Context, event *StopEvent) *StopResponse {
+				Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 					return Error(errors.New("stop handler error"))
 				},
 				Error: func(ctx context.Context, rawJSON string, err error) *RawResponse {

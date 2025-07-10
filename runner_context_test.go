@@ -10,12 +10,12 @@ import (
 func TestRunContext(t *testing.T) {
 	// Test that RunContext works with a custom context
 	runner := &Runner{
-		PreToolUse: func(ctx context.Context, event *PreToolUseEvent) (*PreToolUseResponse, error) {
+		PreToolUse: func(ctx context.Context, event *PreToolUseEvent) PreToolUseResponseInterface {
 			// Verify context is passed through
 			if ctx == nil {
 				t.Error("context should not be nil")
 			}
-			return Approve(), nil
+			return Approve()
 		},
 	}
 

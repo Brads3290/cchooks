@@ -102,7 +102,7 @@ func TestStopEventWithTranscript(t *testing.T) {
 
 	// Create runner that verifies transcript is loaded
 	runner := &Runner{
-		Stop: func(ctx context.Context, event *StopEvent) (*StopResponse, error) {
+		Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 			// Verify transcript was loaded
 			if len(event.Transcript) != 1 {
 				t.Errorf("Expected 1 transcript entry, got %d", len(event.Transcript))
@@ -110,7 +110,7 @@ func TestStopEventWithTranscript(t *testing.T) {
 			if event.TranscriptPath != transcriptPath {
 				t.Errorf("TranscriptPath = %s, want %s", event.TranscriptPath, transcriptPath)
 			}
-			return Continue(), nil
+			return Continue()
 		},
 	}
 
@@ -159,7 +159,7 @@ func TestStopEventWithTranscript(t *testing.T) {
 func TestStopEventWithMissingTranscript(t *testing.T) {
 	// Test that missing transcript file doesn't cause failure
 	runner := &Runner{
-		Stop: func(ctx context.Context, event *StopEvent) (*StopResponse, error) {
+		Stop: func(ctx context.Context, event *StopEvent) StopResponseInterface {
 			// Verify transcript is empty array, not nil
 			if event.Transcript == nil {
 				t.Error("Transcript should not be nil")
@@ -167,7 +167,7 @@ func TestStopEventWithMissingTranscript(t *testing.T) {
 			if len(event.Transcript) != 0 {
 				t.Errorf("Expected empty transcript, got %d entries", len(event.Transcript))
 			}
-			return Continue(), nil
+			return Continue()
 		},
 	}
 
