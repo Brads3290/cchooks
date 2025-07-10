@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.0] - 2025-01-10
+
+### Changed
+- **BREAKING**: Simplified Runner API to remove error returns from handlers
+  - All handlers now return single result values instead of (result, error) tuples
+  - Handlers return interfaces: `PreToolUseResponseInterface`, `PostToolUseResponseInterface`, etc.
+  - Errors are returned using `cchooks.Error(err)` which implements all response interfaces
+  - This simplifies handler signatures and makes error handling more consistent
+- Reorganized documentation into separate files in `docs/` directory
+  - Added comprehensive test SDK documentation
+  - Improved examples and API reference
+  - Removed misleading sections about stateful hooks and performance
+
+### Fixed
+- Fixed illegal $1 character usage in security-hook example tests
+- Fixed test expectations to properly handle interface types with type assertions
+
 ## [v0.6.0] - 2025-01-10
 
 ### Added
