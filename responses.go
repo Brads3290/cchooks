@@ -106,4 +106,3 @@ type RawResponse struct {
 	ExitCode int
 	Output   string
 }
-

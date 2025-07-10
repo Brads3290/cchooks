@@ -9,9 +9,6 @@ import (
 	"os"
 )
 
-// osExit is a variable to allow mocking os.Exit in tests
-var osExit = os.Exit
-
 // Runner handles event dispatch and I/O for a single hook binary
 type Runner struct {
 	// Raw is called before any other processing with the raw JSON string
@@ -25,21 +22,37 @@ type Runner struct {
 	// StopOnce is called for Stop events only when stop_hook_active is false
 	// This allows hooks to handle the first stop event differently
 	// If both Stop and StopOnce are defined, StopOnce takes precedence when stop_hook_active is false
-	StopOnce     func(context.Context, *StopEvent) (*StopResponse, error)
+	StopOnce func(context.Context, *StopEvent) (*StopResponse, error)
 	// Error is called when any error occurs inside the SDK
 	// It receives the raw JSON string that was passed to the hook and the error
 	// If it returns a non-nil RawResponse, that response is used instead of the default error handling
 	// If it returns nil, the SDK will use exit code 2 and output the error to stderr
-	Error        func(ctx context.Context, rawJSON string, err error) *RawResponse
+	Error func(ctx context.Context, rawJSON string, err error) *RawResponse
+
+	// ExitFn is used for exiting the process. It defaults to os.Exit but can be overridden in tests.
+	ExitFn func(int)
 }
 
 // Run reads from stdin, dispatches to appropriate handler, outputs response
-func (r *Runner) Run(ctx context.Context) error {
+// It uses context.Background() as the context.
+func (r *Runner) Run() {
+	r.RunContext(context.Background())
+}
+
+// RunContext reads from stdin, dispatches to appropriate handler, outputs response
+// It accepts a custom context for cancellation and timeout support.
+func (r *Runner) RunContext(ctx context.Context) {
+	// Set default exit function if not set
+	if r.ExitFn == nil {
+		r.ExitFn = os.Exit
+	}
+
 	// Read all input for error handling
 	var rawJSON []byte
 	rawJSON, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		return fmt.Errorf("failed to read stdin: %w", err)
+		r.handleError(ctx, "", fmt.Errorf("failed to read stdin: %w", err))
+		return
 	}
 
 	// Set up panic recovery
@@ -49,7 +62,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			if p == "exit" {
 				panic(p)
 			}
-			
+
 			// Convert panic to error
 			var err error
 			switch v := p.(type) {
@@ -71,15 +84,15 @@ func (r *Runner) Run(ctx context.Context) error {
 		response, err := r.Raw(ctx, string(rawJSON))
 		if err != nil {
 			r.handleError(ctx, string(rawJSON), err)
-			return nil // handleError exits, so this is unreachable
+			return // handleError exits, so this is unreachable
 		}
-		
+
 		// If Raw handler returns a response, use it and exit
 		if response != nil {
 			if response.Output != "" {
 				fmt.Fprint(os.Stdout, response.Output)
 			}
-			osExit(response.ExitCode)
+			r.ExitFn(response.ExitCode)
 		}
 		// If Raw handler returns nil, continue with normal processing
 	}
@@ -89,7 +102,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	if err := json.Unmarshal(rawJSON, &rawEvent); err != nil {
 		err = fmt.Errorf("failed to decode stdin: %w", err)
 		r.handleError(ctx, string(rawJSON), err)
-		return nil // handleError exits, so this is unreachable
+		return // handleError exits, so this is unreachable
 	}
 
 	// Check for hook_event_name field (the actual field name used by Claude Code)
@@ -97,7 +110,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	if !ok {
 		err := fmt.Errorf("missing or invalid hook_event_name field")
 		r.handleError(ctx, string(rawJSON), err)
-		return nil // handleError exits, so this is unreachable
+		return // handleError exits, so this is unreachable
 	}
 
 	// Dispatch to appropriate handler
@@ -114,13 +127,14 @@ func (r *Runner) Run(ctx context.Context) error {
 	default:
 		dispatchErr = fmt.Errorf("unknown event type: %s", event)
 	}
-	
+
 	if dispatchErr != nil {
 		r.handleError(ctx, string(rawJSON), dispatchErr)
-		return nil // handleError exits, so this is unreachable
+		return // handleError exits, so this is unreachable
 	}
-	
-	return nil
+
+	// Success - exit with code 0
+	r.ExitFn(0)
 }
 
 func (r *Runner) handlePreToolUse(ctx context.Context, rawEvent map[string]interface{}, rawJSON string) error {
@@ -239,7 +253,7 @@ func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}
 
 	// Determine which handler to use
 	var handler func(context.Context, *StopEvent) (*StopResponse, error)
-	
+
 	// If stop_hook_active is false and StopOnce is defined, use StopOnce
 	if !event.StopHookActive && r.StopOnce != nil {
 		handler = r.StopOnce
@@ -308,17 +322,17 @@ func (r *Runner) handleError(ctx context.Context, rawJSON string, err error) {
 			if response.Output != "" {
 				fmt.Fprint(os.Stdout, response.Output)
 			}
-			osExit(response.ExitCode)
+			r.ExitFn(response.ExitCode)
 			return
 		}
 	}
-	
+
 	// Default error handling
 	fmt.Fprintf(os.Stderr, "%v\n", err)
-	
+
 	// Determine exit code based on event type
 	exitCode := 2 // Default for most errors
-	
+
 	// Parse the event type from rawJSON to check if it's a Stop event
 	var eventData map[string]interface{}
 	if json.Unmarshal([]byte(rawJSON), &eventData) == nil {
@@ -326,8 +340,8 @@ func (r *Runner) handleError(ctx context.Context, rawJSON string, err error) {
 			exitCode = 0 // Don't block Claude from stopping
 		}
 	}
-	
-	osExit(exitCode)
+
+	r.ExitFn(exitCode)
 }
 
 // readTranscript reads a JSONL transcript file and returns parsed entries
@@ -341,29 +355,29 @@ func readTranscript(path string) ([]TranscriptEntry, error) {
 	var entries []TranscriptEntry
 	scanner := bufio.NewScanner(file)
 	lineNum := 0
-	
+
 	for scanner.Scan() {
 		lineNum++
 		line := scanner.Text()
-		
+
 		// Skip empty lines
 		if line == "" {
 			continue
 		}
-		
+
 		var entry TranscriptEntry
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			// Continue on error - some lines might be malformed
 			// but we want to read as much as possible
 			continue
 		}
-		
+
 		entries = append(entries, entry)
 	}
-	
+
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error reading transcript file: %w", err)
 	}
-	
+
 	return entries, nil
 }

@@ -89,7 +89,5 @@ func main() {
 		},
 	}
 
-	if err := runner.Run(context.Background()); err != nil {
-		log.Fatal(err)
-	}
+	runner.Run()
 }

@@ -22,7 +22,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"strings"
 	cchooks "github.com/brads3290/cchooks"
 )
@@ -40,9 +39,7 @@ func main() {
 		},
 	}
 	
-	if err := runner.Run(context.Background()); err != nil {
-		log.Fatal(err)
-	}
+	runner.Run()
 }
 `
 
@@ -65,7 +62,7 @@ func main() {
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	goMod := fmt.Sprintf(`module testhook
 go 1.21
 require github.com/brads3290/cchooks v0.0.0
@@ -101,9 +98,9 @@ replace github.com/brads3290/cchooks => %s
 		{
 			name: "approve safe command",
 			input: map[string]interface{}{
-				"hook_event_name":       "PreToolUse",
-				"session_id":  "test-123",
-				"tool_name":   "Bash",
+				"hook_event_name": "PreToolUse",
+				"session_id":      "test-123",
+				"tool_name":       "Bash",
 				"tool_input": map[string]interface{}{
 					"command": "ls -la",
 				},
@@ -117,9 +114,9 @@ replace github.com/brads3290/cchooks => %s
 		{
 			name: "block dangerous command",
 			input: map[string]interface{}{
-				"hook_event_name":       "PreToolUse",
-				"session_id":  "test-456",
-				"tool_name":   "Bash",
+				"hook_event_name": "PreToolUse",
+				"session_id":      "test-456",
+				"tool_name":       "Bash",
 				"tool_input": map[string]interface{}{
 					"command": "rm -rf /",
 				},
@@ -213,11 +210,18 @@ func TestHookIO(t *testing.T) {
 		os.Stderr = oldStderr
 	}()
 
-	// Create runner
+	// Create runner with mock exit function
+	exitCode := -1
 	runner := &cchooks.Runner{
 		PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
 			return cchooks.Approve(), nil
 		},
+	}
+
+	// Override the exit function to capture the exit code
+	runner.ExitFn = func(code int) {
+		exitCode = code
+		panic("exit") // Simulate exit without actually exiting
 	}
 
 	// Write test input
@@ -227,14 +231,15 @@ func TestHookIO(t *testing.T) {
 		stdinW.Close()
 	}()
 
-	// Run in goroutine
-	done := make(chan error)
-	go func() {
-		done <- runner.Run(context.Background())
+	// Run and capture panic
+	func() {
+		defer func() {
+			if r := recover(); r != nil && r != "exit" {
+				panic(r)
+			}
+		}()
+		runner.Run()
 	}()
-
-	// Wait for completion
-	err := <-done
 
 	// Close write ends after runner completes
 	stdoutW.Close()
@@ -243,8 +248,10 @@ func TestHookIO(t *testing.T) {
 	// Read output
 	stdout, _ := io.ReadAll(stdoutR)
 	stderr, _ := io.ReadAll(stderrR)
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
+
+	// Check exit code
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code = %d, stderr = %s", exitCode, stderr)
 	}
 
 	// Verify output

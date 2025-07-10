@@ -119,11 +119,11 @@ You can optionally handle SDK errors by providing an Error handler:
 	    Error: func(ctx context.Context, rawJSON string, err error) *cchooks.RawResponse {
 	        // Log errors, send telemetry, etc.
 	        log.Printf("Hook error: %v, JSON: %s", err, rawJSON)
-	        
+
 	        // Return nil to use default error handling
 	        // (exit code 2 for most events, 0 for Stop events)
 	        return nil
-	        
+
 	        // Or return a custom response
 	        // return &cchooks.RawResponse{
 	        //     ExitCode: 1,
@@ -134,7 +134,7 @@ You can optionally handle SDK errors by providing an Error handler:
 
 The Error handler is called whenever an error occurs inside the SDK, including:
   - JSON parsing errors
-  - Event validation errors  
+  - Event validation errors
   - Handler errors (before they cause exit code 2)
   - Response encoding errors
   - Panics that occur during processing

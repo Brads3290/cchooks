@@ -17,7 +17,7 @@ func TestTranscriptReading(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	transcriptPath := filepath.Join(tmpDir, "test-transcript.jsonl")
-	
+
 	// Write test transcript data
 	transcriptData := []string{
 		`{"parentUuid":null,"uuid":"1","isSidechain":false,"userType":"external","cwd":"/test","sessionId":"test-session","version":"1.0.0","type":"user","message":{"role":"user","content":"Hello"},"timestamp":"2025-01-10T10:00:00Z"}`,
@@ -25,7 +25,7 @@ func TestTranscriptReading(t *testing.T) {
 		``, // Empty line should be skipped
 		`{"parentUuid":"2","uuid":"3","isSidechain":false,"userType":"external","cwd":"/test","sessionId":"test-session","version":"1.0.0","type":"user","message":{"role":"user","content":"Goodbye"},"timestamp":"2025-01-10T10:00:02Z"}`,
 	}
-	
+
 	file, err := os.Create(transcriptPath)
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestStopEventWithTranscript(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	transcriptPath := filepath.Join(tmpDir, "stop-transcript.jsonl")
-	
+
 	// Write minimal transcript
 	file, err := os.Create(transcriptPath)
 	if err != nil {
@@ -116,7 +116,7 @@ func TestStopEventWithTranscript(t *testing.T) {
 
 	// Test with transcript path
 	input := `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript_path": "` + transcriptPath + `"}`
-	
+
 	// Mock stdin
 	oldStdin := os.Stdin
 	r, w, _ := os.Pipe()
@@ -136,12 +136,10 @@ func TestStopEventWithTranscript(t *testing.T) {
 
 	// Mock exit
 	exitCode := -1
-	oldExit := osExit
-	osExit = func(code int) {
+	runner.ExitFn = func(code int) {
 		exitCode = code
 		panic("exit")
 	}
-	defer func() { osExit = oldExit }()
 
 	// Run
 	func() {
@@ -150,11 +148,7 @@ func TestStopEventWithTranscript(t *testing.T) {
 				panic(r)
 			}
 		}()
-		err := runner.Run(context.Background())
-		if err == nil {
-			// No error means successful completion, exit code 0
-			osExit(0)
-		}
+		runner.Run()
 	}()
 
 	if exitCode != 0 {
@@ -179,7 +173,7 @@ func TestStopEventWithMissingTranscript(t *testing.T) {
 
 	// Test with non-existent transcript path
 	input := `{"hook_event_name": "Stop", "session_id": "test", "stop_hook_active": true, "transcript_path": "/non/existent/path.jsonl"}`
-	
+
 	// Mock stdin
 	oldStdin := os.Stdin
 	r, w, _ := os.Pipe()
@@ -199,12 +193,10 @@ func TestStopEventWithMissingTranscript(t *testing.T) {
 
 	// Mock exit
 	exitCode := -1
-	oldExit := osExit
-	osExit = func(code int) {
+	runner.ExitFn = func(code int) {
 		exitCode = code
 		panic("exit")
 	}
-	defer func() { osExit = oldExit }()
 
 	// Run
 	func() {
@@ -213,11 +205,7 @@ func TestStopEventWithMissingTranscript(t *testing.T) {
 				panic(r)
 			}
 		}()
-		err := runner.Run(context.Background())
-		if err == nil {
-			// No error means successful completion, exit code 0
-			osExit(0)
-		}
+		runner.Run()
 	}()
 
 	if exitCode != 0 {
@@ -228,10 +216,10 @@ func TestStopEventWithMissingTranscript(t *testing.T) {
 func TestTranscriptEntryMethods(t *testing.T) {
 	// Test IsUserMessage and IsAssistantMessage
 	userEntry := TranscriptEntry{
-		Type: "user",
+		Type:    "user",
 		Message: json.RawMessage(`{"role":"user","content":"Hello"}`),
 	}
-	
+
 	if !userEntry.IsUserMessage() {
 		t.Error("Expected IsUserMessage to return true")
 	}
@@ -240,10 +228,10 @@ func TestTranscriptEntryMethods(t *testing.T) {
 	}
 
 	assistantEntry := TranscriptEntry{
-		Type: "assistant",
+		Type:    "assistant",
 		Message: json.RawMessage(`{"role":"assistant","content":[{"type":"text","text":"Hi"}]}`),
 	}
-	
+
 	if assistantEntry.IsUserMessage() {
 		t.Error("Expected IsUserMessage to return false")
 	}

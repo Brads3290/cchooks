@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 
 	cchooks "github.com/brads3290/cchooks"
 )
@@ -125,8 +124,5 @@ func main() {
 		},
 	}
 
-	if err := runner.Run(context.Background()); err != nil {
-		log.Fatal(err)
-		os.Exit(1)
-	}
+	runner.Run()
 }

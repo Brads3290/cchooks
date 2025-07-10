@@ -197,12 +197,10 @@ func TestRunner_Run(t *testing.T) {
 
 			// Capture exit code
 			var exitCode int
-			oldExit := osExit
-			osExit = func(code int) {
+			tt.runner.ExitFn = func(code int) {
 				exitCode = code
 				panic("exit")
 			}
-			defer func() { osExit = oldExit }()
 
 			// Run the test
 			func() {
@@ -211,10 +209,7 @@ func TestRunner_Run(t *testing.T) {
 						panic(r)
 					}
 				}()
-				err := tt.runner.Run(context.Background())
-				if err != nil {
-					exitCode = 1
-				}
+				tt.runner.Run()
 			}()
 
 			// Close write ends
@@ -419,12 +414,10 @@ func TestHandlerErrors(t *testing.T) {
 
 	// Mock os.Exit
 	exitCode := -1
-	oldExit := osExit
-	osExit = func(code int) {
+	runner.ExitFn = func(code int) {
 		exitCode = code
 		panic("exit")
 	}
-	defer func() { osExit = oldExit }()
 
 	// Run
 	func() {
@@ -433,7 +426,7 @@ func TestHandlerErrors(t *testing.T) {
 				panic(r)
 			}
 		}()
-		runner.Run(context.Background())
+		runner.Run()
 	}()
 
 	// Close write end and read stderr
@@ -563,12 +556,10 @@ func TestRawHandler(t *testing.T) {
 
 			// Capture exit code
 			var exitCode int
-			oldExit := osExit
-			osExit = func(code int) {
+			tt.runner.ExitFn = func(code int) {
 				exitCode = code
 				panic("exit")
 			}
-			defer func() { osExit = oldExit }()
 
 			// Run the test
 			func() {
@@ -577,10 +568,7 @@ func TestRawHandler(t *testing.T) {
 						panic(r)
 					}
 				}()
-				err := tt.runner.Run(context.Background())
-				if err != nil {
-					exitCode = 1
-				}
+				tt.runner.Run()
 			}()
 
 			// Close write ends
@@ -661,10 +649,10 @@ func TestErrorHandler(t *testing.T) {
 					var expected, actual map[string]interface{}
 					json.Unmarshal([]byte(expectedJSON), &expected)
 					json.Unmarshal([]byte(rawJSON), &actual)
-					
+
 					expectedBytes, _ := json.Marshal(expected)
 					actualBytes, _ := json.Marshal(actual)
-					
+
 					if string(expectedBytes) != string(actualBytes) {
 						t.Errorf("Error handler got rawJSON = %q, want %q", rawJSON, expectedJSON)
 					}
@@ -685,7 +673,7 @@ func TestErrorHandler(t *testing.T) {
 					var expected, actual map[string]interface{}
 					json.Unmarshal([]byte(expectedJSON), &expected)
 					json.Unmarshal([]byte(rawJSON), &actual)
-					
+
 					if err == nil || err.Error() != "unknown event type: UnknownEvent" {
 						t.Errorf("Error handler got unexpected error: %v", err)
 					}
@@ -791,12 +779,10 @@ func TestErrorHandler(t *testing.T) {
 
 			// Mock os.Exit
 			var exitCode int
-			oldExit := osExit
-			osExit = func(code int) {
+			tt.runner.ExitFn = func(code int) {
 				exitCode = code
 				panic("exit")
 			}
-			defer func() { osExit = oldExit }()
 
 			// Run and handle expected errors/panics
 			func() {
@@ -805,7 +791,7 @@ func TestErrorHandler(t *testing.T) {
 						panic(r)
 					}
 				}()
-				_ = tt.runner.Run(context.Background())
+				tt.runner.Run()
 			}()
 
 			// Close writers to allow reading
@@ -832,7 +818,7 @@ func TestErrorHandler(t *testing.T) {
 				if strings.Contains(tt.input, `"hook_event_name": "Stop"`) {
 					expectedExitCode = 0
 				}
-				
+
 				if exitCode != expectedExitCode {
 					t.Errorf("exit code = %d, want %d", exitCode, expectedExitCode)
 				}

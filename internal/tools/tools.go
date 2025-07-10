@@ -356,7 +356,7 @@ func ParseMCPTool(toolName string, e EventWithToolInput) (*MCPTool, error) {
 	}
 
 	return &MCPTool{
-		MCPName:  parts[1],                     // servername
+		MCPName:  parts[1],                      // servername
 		ToolName: strings.Join(parts[2:], "__"), // toolname (may contain __)
 		RawInput: e.GetToolInput(),
 	}, nil
@@ -375,7 +375,7 @@ func ParseMCPToolResponse(toolName string, e EventWithToolResponse) (*MCPToolOut
 	}
 
 	return &MCPToolOutput{
-		MCPName:   parts[1],                     // servername
+		MCPName:   parts[1],                      // servername
 		ToolName:  strings.Join(parts[2:], "__"), // toolname (may contain __)
 		RawOutput: e.GetToolResponse(),
 	}, nil

@@ -7,33 +7,33 @@ import (
 
 func TestMCPToolDetection(t *testing.T) {
 	tests := []struct {
-		name           string
-		toolName       string
-		wantIsMCP      bool
+		name            string
+		toolName        string
+		wantIsMCP       bool
 		wantMCPToolName string
 	}{
 		{
-			name:           "standard tool",
-			toolName:       "Bash",
-			wantIsMCP:      false,
+			name:            "standard tool",
+			toolName:        "Bash",
+			wantIsMCP:       false,
 			wantMCPToolName: "",
 		},
 		{
-			name:           "simple MCP tool",
-			toolName:       "mcp__weather__get_forecast",
-			wantIsMCP:      true,
+			name:            "simple MCP tool",
+			toolName:        "mcp__weather__get_forecast",
+			wantIsMCP:       true,
 			wantMCPToolName: "mcp__weather__get_forecast",
 		},
 		{
-			name:           "MCP tool with underscores in tool name",
-			toolName:       "mcp__myserver__get_user_data",
-			wantIsMCP:      true,
+			name:            "MCP tool with underscores in tool name",
+			toolName:        "mcp__myserver__get_user_data",
+			wantIsMCP:       true,
 			wantMCPToolName: "mcp__myserver__get_user_data",
 		},
 		{
-			name:           "tool starting with mcp but not MCP format",
-			toolName:       "mcp_tool",
-			wantIsMCP:      false,
+			name:            "tool starting with mcp but not MCP format",
+			toolName:        "mcp_tool",
+			wantIsMCP:       false,
 			wantMCPToolName: "",
 		},
 	}
@@ -44,11 +44,11 @@ func TestMCPToolDetection(t *testing.T) {
 			preEvent := &PreToolUseEvent{
 				ToolName: tt.toolName,
 			}
-			
+
 			if got := preEvent.IsMCPTool(); got != tt.wantIsMCP {
 				t.Errorf("PreToolUseEvent.IsMCPTool() = %v, want %v", got, tt.wantIsMCP)
 			}
-			
+
 			if got := preEvent.MCPToolName(); got != tt.wantMCPToolName {
 				t.Errorf("PreToolUseEvent.MCPToolName() = %q, want %q", got, tt.wantMCPToolName)
 			}
@@ -57,11 +57,11 @@ func TestMCPToolDetection(t *testing.T) {
 			postEvent := &PostToolUseEvent{
 				ToolName: tt.toolName,
 			}
-			
+
 			if got := postEvent.IsMCPTool(); got != tt.wantIsMCP {
 				t.Errorf("PostToolUseEvent.IsMCPTool() = %v, want %v", got, tt.wantIsMCP)
 			}
-			
+
 			if got := postEvent.MCPToolName(); got != tt.wantMCPToolName {
 				t.Errorf("PostToolUseEvent.MCPToolName() = %q, want %q", got, tt.wantMCPToolName)
 			}

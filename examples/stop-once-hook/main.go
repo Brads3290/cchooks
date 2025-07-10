@@ -14,22 +14,20 @@ func main() {
 			// This will only run on the first stop event
 			// You could use this to save state, send notifications, etc.
 			log.Printf("First stop detected! Session: %s\n", event.SessionID)
-			
+
 			// Block the first stop to allow cleanup or confirmation
 			return cchooks.BlockStop("Please confirm you want to stop"), nil
 		},
-		
+
 		// Regular Stop handler for subsequent stops (when stop_hook_active is true)
 		Stop: func(ctx context.Context, event *cchooks.StopEvent) (*cchooks.StopResponse, error) {
 			// This runs on all subsequent stop attempts
 			log.Printf("Stop attempt %v for session: %s\n", event.StopHookActive, event.SessionID)
-			
+
 			// Allow subsequent stops
 			return cchooks.Continue(), nil
 		},
 	}
 
-	if err := runner.Run(context.Background()); err != nil {
-		log.Fatal(err)
-	}
+	runner.Run()
 }

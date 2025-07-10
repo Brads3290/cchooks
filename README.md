@@ -46,9 +46,7 @@ func main() {
         },
     }
     
-    if err := runner.Run(context.Background()); err != nil {
-        log.Fatal(err)
-    }
+    runner.Run()
 }
 ```
 
@@ -425,6 +423,12 @@ type Runner struct {
     // Error handler - called on any SDK error
     Error        func(ctx context.Context, rawJSON string, err error) *RawResponse
 }
+
+// Run the hook with context.Background()
+func (r *Runner) Run()
+
+// RunContext runs the hook with a custom context
+func (r *Runner) RunContext(ctx context.Context)
 ```
 
 #### Event Types
