@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.0] - 2025-01-10
+
+### Added
+- StopOnce handler for handling first stop event differently
+  - Only triggers when `stop_hook_active` is false
+  - Takes precedence over Stop handler when both are defined
+  - Enables use cases like confirmation dialogs or cleanup on first stop
+- Example `stop-once-hook` demonstrating the new feature
+- Comprehensive tests for StopOnce behavior
+
+### Fixed
+- Updated all references from `event` field to `hook_event_name` field
+  - This matches the actual field name sent by Claude Code
+  - Removed backward compatibility as `event` field never worked
+
 ## [v0.5.0] - 2025-01-10
 
 ### Changed
