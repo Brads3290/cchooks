@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -16,37 +17,60 @@ type Runner struct {
 	PostToolUse  func(context.Context, *PostToolUseEvent) (*PostToolUseResponse, error)
 	Notification func(context.Context, *NotificationEvent) (*NotificationResponse, error)
 	Stop         func(context.Context, *StopEvent) (*StopResponse, error)
+	// Error is called when any error occurs inside the SDK
+	// It receives the raw JSON string that was passed to the hook and the error
+	Error        func(ctx context.Context, rawJSON string, err error)
 }
 
 // Run reads from stdin, dispatches to appropriate handler, outputs response
 func (r *Runner) Run(ctx context.Context) error {
-	// Read and parse JSON from stdin
+	// Read all input for error handling
+	var rawJSON []byte
+	rawJSON, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("failed to read stdin: %w", err)
+	}
+
+	// Parse JSON
 	var rawEvent map[string]interface{}
-	if err := json.NewDecoder(os.Stdin).Decode(&rawEvent); err != nil {
+	if err := json.Unmarshal(rawJSON, &rawEvent); err != nil {
+		if r.Error != nil {
+			r.Error(ctx, string(rawJSON), fmt.Errorf("failed to decode stdin: %w", err))
+		}
 		return fmt.Errorf("failed to decode stdin: %w", err)
 	}
 
 	event, ok := rawEvent["event"].(string)
 	if !ok {
-		return fmt.Errorf("missing or invalid event field")
+		err := fmt.Errorf("missing or invalid event field")
+		if r.Error != nil {
+			r.Error(ctx, string(rawJSON), err)
+		}
+		return err
 	}
 
 	// Dispatch to appropriate handler
+	var dispatchErr error
 	switch event {
 	case "PreToolUse":
-		return r.handlePreToolUse(ctx, rawEvent)
+		dispatchErr = r.handlePreToolUse(ctx, rawEvent, string(rawJSON))
 	case "PostToolUse":
-		return r.handlePostToolUse(ctx, rawEvent)
+		dispatchErr = r.handlePostToolUse(ctx, rawEvent, string(rawJSON))
 	case "Notification":
-		return r.handleNotification(ctx, rawEvent)
+		dispatchErr = r.handleNotification(ctx, rawEvent, string(rawJSON))
 	case "Stop":
-		return r.handleStop(ctx, rawEvent)
+		dispatchErr = r.handleStop(ctx, rawEvent, string(rawJSON))
 	default:
-		return fmt.Errorf("unknown event type: %s", event)
+		dispatchErr = fmt.Errorf("unknown event type: %s", event)
 	}
+	
+	if dispatchErr != nil && r.Error != nil {
+		r.Error(ctx, string(rawJSON), dispatchErr)
+	}
+	return dispatchErr
 }
 
-func (r *Runner) handlePreToolUse(ctx context.Context, rawEvent map[string]interface{}) error {
+func (r *Runner) handlePreToolUse(ctx context.Context, rawEvent map[string]interface{}, rawJSON string) error {
 	if r.PreToolUse == nil {
 		return nil
 	}
@@ -59,22 +83,35 @@ func (r *Runner) handlePreToolUse(ctx context.Context, rawEvent map[string]inter
 
 	var event PreToolUseEvent
 	if err := json.Unmarshal(eventData, &event); err != nil {
-		return fmt.Errorf("failed to parse PreToolUseEvent: %w", err)
+		err = fmt.Errorf("failed to parse PreToolUseEvent: %w", err)
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
+		return err
 	}
 
 	// Call handler
 	response, err := r.PreToolUse(ctx, &event)
 	if err != nil {
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
 		// Exit code 2 sends error to Claude
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		osExit(2)
 	}
 
 	// Handle response
-	return outputResponse(response)
+	if err := outputResponse(response); err != nil {
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
+		return err
+	}
+	return nil
 }
 
-func (r *Runner) handlePostToolUse(ctx context.Context, rawEvent map[string]interface{}) error {
+func (r *Runner) handlePostToolUse(ctx context.Context, rawEvent map[string]interface{}, rawJSON string) error {
 	if r.PostToolUse == nil {
 		return nil
 	}
@@ -87,22 +124,35 @@ func (r *Runner) handlePostToolUse(ctx context.Context, rawEvent map[string]inte
 
 	var event PostToolUseEvent
 	if err := json.Unmarshal(eventData, &event); err != nil {
-		return fmt.Errorf("failed to parse PostToolUseEvent: %w", err)
+		err = fmt.Errorf("failed to parse PostToolUseEvent: %w", err)
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
+		return err
 	}
 
 	// Call handler
 	response, err := r.PostToolUse(ctx, &event)
 	if err != nil {
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
 		// Exit code 2 sends error to Claude
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		osExit(2)
 	}
 
 	// Handle response
-	return outputResponse(response)
+	if err := outputResponse(response); err != nil {
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
+		return err
+	}
+	return nil
 }
 
-func (r *Runner) handleNotification(ctx context.Context, rawEvent map[string]interface{}) error {
+func (r *Runner) handleNotification(ctx context.Context, rawEvent map[string]interface{}, rawJSON string) error {
 	if r.Notification == nil {
 		return nil
 	}
@@ -115,22 +165,35 @@ func (r *Runner) handleNotification(ctx context.Context, rawEvent map[string]int
 
 	var event NotificationEvent
 	if err := json.Unmarshal(eventData, &event); err != nil {
-		return fmt.Errorf("failed to parse NotificationEvent: %w", err)
+		err = fmt.Errorf("failed to parse NotificationEvent: %w", err)
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
+		return err
 	}
 
 	// Call handler
 	response, err := r.Notification(ctx, &event)
 	if err != nil {
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
 		// Exit code 2 sends error to Claude
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		osExit(2)
 	}
 
 	// Handle response
-	return outputResponse(response)
+	if err := outputResponse(response); err != nil {
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
+		return err
+	}
+	return nil
 }
 
-func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}) error {
+func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}, rawJSON string) error {
 	if r.Stop == nil {
 		return nil
 	}
@@ -143,19 +206,32 @@ func (r *Runner) handleStop(ctx context.Context, rawEvent map[string]interface{}
 
 	var event StopEvent
 	if err := json.Unmarshal(eventData, &event); err != nil {
-		return fmt.Errorf("failed to parse StopEvent: %w", err)
+		err = fmt.Errorf("failed to parse StopEvent: %w", err)
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
+		return err
 	}
 
 	// Call handler
 	response, err := r.Stop(ctx, &event)
 	if err != nil {
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
 		// Exit code 2 sends error to Claude
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		osExit(2)
 	}
 
 	// Handle response
-	return outputResponse(response)
+	if err := outputResponse(response); err != nil {
+		if r.Error != nil {
+			r.Error(ctx, rawJSON, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func outputResponse(response interface{}) error {

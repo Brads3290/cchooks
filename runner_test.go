@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -377,5 +378,134 @@ func TestHandlerErrors(t *testing.T) {
 
 	if exitCode != 2 {
 		t.Errorf("expected exit code 2, got %d, stderr: %s", exitCode, stderrOutput)
+	}
+}
+
+func TestErrorHandler(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		runner        *Runner
+		wantErrJSON   string
+		wantErrString string
+	}{
+		{
+			name:  "invalid JSON",
+			input: `{invalid json`,
+			runner: &Runner{
+				Error: func(ctx context.Context, rawJSON string, err error) {
+					if rawJSON != `{invalid json` {
+						t.Errorf("Error handler got rawJSON = %q, want %q", rawJSON, `{invalid json`)
+					}
+					if err == nil || !strings.Contains(err.Error(), "failed to decode stdin:") {
+						t.Errorf("Error handler got unexpected error: %v", err)
+					}
+				},
+			},
+			wantErrJSON:   `{invalid json`,
+			wantErrString: "failed to decode stdin:",
+		},
+		{
+			name:  "missing event field",
+			input: `{"session_id": "test"}`,
+			runner: &Runner{
+				Error: func(ctx context.Context, rawJSON string, err error) {
+					if rawJSON != `{"session_id": "test"}` {
+						t.Errorf("Error handler got rawJSON = %q, want %q", rawJSON, `{"session_id": "test"}`)
+					}
+					if err == nil || err.Error() != "missing or invalid event field" {
+						t.Errorf("Error handler got unexpected error: %v", err)
+					}
+				},
+			},
+			wantErrJSON:   `{"session_id": "test"}`,
+			wantErrString: "missing or invalid event field",
+		},
+		{
+			name:  "handler error",
+			input: `{"event": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`,
+			runner: &Runner{
+				PreToolUse: func(ctx context.Context, event *PreToolUseEvent) (*PreToolUseResponse, error) {
+					return nil, errors.New("handler error")
+				},
+				Error: func(ctx context.Context, rawJSON string, err error) {
+					expectedJSON := `{"event": "PreToolUse", "session_id": "test", "tool_name": "Bash", "tool_input": {"command": "ls"}}`
+					var expected, actual map[string]interface{}
+					json.Unmarshal([]byte(expectedJSON), &expected)
+					json.Unmarshal([]byte(rawJSON), &actual)
+					
+					expectedBytes, _ := json.Marshal(expected)
+					actualBytes, _ := json.Marshal(actual)
+					
+					if string(expectedBytes) != string(actualBytes) {
+						t.Errorf("Error handler got rawJSON = %q, want %q", rawJSON, expectedJSON)
+					}
+					if err == nil || err.Error() != "handler error" {
+						t.Errorf("Error handler got unexpected error: %v", err)
+					}
+				},
+			},
+			wantErrString: "handler error",
+		},
+		{
+			name:  "unknown event type",
+			input: `{"event": "UnknownEvent", "session_id": "test"}`,
+			runner: &Runner{
+				Error: func(ctx context.Context, rawJSON string, err error) {
+					expectedJSON := `{"event": "UnknownEvent", "session_id": "test"}`
+					var expected, actual map[string]interface{}
+					json.Unmarshal([]byte(expectedJSON), &expected)
+					json.Unmarshal([]byte(rawJSON), &actual)
+					
+					if err == nil || err.Error() != "unknown event type: UnknownEvent" {
+						t.Errorf("Error handler got unexpected error: %v", err)
+					}
+				},
+			},
+			wantErrString: "unknown event type: UnknownEvent",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Mock stdin
+			oldStdin := os.Stdin
+			r, w, _ := os.Pipe()
+			os.Stdin = r
+			w.Write([]byte(tt.input))
+			w.Close()
+			defer func() { os.Stdin = oldStdin }()
+
+			// Mock stderr for handler errors
+			if tt.runner.PreToolUse != nil || tt.runner.PostToolUse != nil {
+				oldStderr := os.Stderr
+				_, wErr, _ := os.Pipe()
+				os.Stderr = wErr
+				defer func() {
+					wErr.Close()
+					os.Stderr = oldStderr
+				}()
+
+				// Mock os.Exit for handler errors
+				oldExit := osExit
+				osExit = func(code int) {
+					panic("exit")
+				}
+				defer func() { osExit = oldExit }()
+			}
+
+			// Run and handle expected errors/panics
+			func() {
+				defer func() {
+					if r := recover(); r != nil && r != "exit" {
+						panic(r)
+					}
+				}()
+				err := tt.runner.Run(context.Background())
+				if err != nil && !strings.Contains(err.Error(), tt.wantErrString) {
+					t.Errorf("Run() error = %v, want %v", err, tt.wantErrString)
+				}
+			}()
+		})
 	}
 }

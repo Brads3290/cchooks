@@ -180,6 +180,29 @@ go build -o my-hook main.go
 - Exit code 2: Error sent to Claude
 - Other exit codes: Error shown to user
 
+### Custom Error Handler
+
+You can optionally handle SDK errors by providing an Error handler:
+
+```go
+runner := &cchooks.Runner{
+    PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+        // Your logic here
+        return cchooks.Approve(), nil
+    },
+    Error: func(ctx context.Context, rawJSON string, err error) {
+        // Log errors, send telemetry, etc.
+        log.Printf("Hook error: %v, JSON: %s", err, rawJSON)
+    },
+}
+```
+
+The Error handler is called for:
+- JSON parsing errors
+- Event validation errors  
+- Handler errors (before they cause exit code 2)
+- Response encoding errors
+
 ## Contributing
 
 Contributions are welcome! Please submit pull requests or issues on GitHub.

@@ -80,5 +80,24 @@ Hooks communicate with Claude Code through exit codes:
   - Exit code 0: Success
   - Exit code 2: Error sent to Claude
   - Other codes: Error shown to user
+
+You can optionally handle SDK errors by providing an Error handler:
+
+	runner := &cchooks.Runner{
+	    PreToolUse: func(ctx context.Context, event *cchooks.PreToolUseEvent) (*cchooks.PreToolUseResponse, error) {
+	        // Your logic here
+	        return cchooks.Approve(), nil
+	    },
+	    Error: func(ctx context.Context, rawJSON string, err error) {
+	        // Log errors, send telemetry, etc.
+	        log.Printf("Hook error: %v, JSON: %s", err, rawJSON)
+	    },
+	}
+
+The Error handler is called whenever an error occurs inside the SDK, including:
+  - JSON parsing errors
+  - Event validation errors  
+  - Handler errors (before they cause exit code 2)
+  - Response encoding errors
 */
 package cchooks
